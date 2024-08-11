@@ -4,31 +4,39 @@ pins = """
 ..... ..x..
 """
 
-[defaults]
+[info]
 language = "english"
-trigram_precision = 1000
 keyboard_type = "ansi"
+trigram_precision = 1000
 
-[weights]
+[alternates]
+base = 0.9
+same_finger_skips = 0.6
+
+[bigrams]
+pinky_ring = 0.2
+lateral_stretch = 2.0
+d_same_finger_ratio = 0.40
+
+[redirects]
+base = 1.4
+same_finger_skips = 2.2
+bad = 4.5
+bad_same_finger_skips = 6.0
+
+[rolls]
+inward = 1.5
+outward = 1.35
+
+[fingers]
+speed = 28.0
 heatmap = 1.70
-fspeed = 28.0
-lateral_penalty = 1.0
-dsfb_ratio = 0.40
 scissors = 2.5
-lsbs = 2.0
-pinky_ring_bigrams = 0.2
-inrolls = 2.5
-outrolls = 2.4
 onehands = 0.9
-alternates = 0.4
-alternates_sfs = 0.6
-redirects = 5.4
-redirects_sfs = 9.2
-bad_redirects = 6.5
-bad_redirects_sfs = 7.5
+lateral_penalty = 1.0
+overuse_penalty = 2.5
 
-[weights.max_finger_use]
-penalty = 2.5
+[fingers.bias]
 pinky = 9.0
 ring = 14.0
 middle = 20.0
