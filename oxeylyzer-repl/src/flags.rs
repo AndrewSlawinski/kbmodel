@@ -1,71 +1,81 @@
 use std::path::PathBuf;
 
-xflags::xflags! {
+use xflags::xflags;
+
+xflags! {
     cmd repl {
-        /// Analyze a layout. You can also specify a number to analyze a previously generated layout.
+        /// Analyze a layout. Specify a number to select a layout generated in this session.
         cmd analyze a view layout {
-            required name_or_nr: String
+            required name_or_number: String
         }
-        /// Compare two layouts
+
+        /// Compare two layouts.
         cmd compare c comp cmp {
             required name1: String
             required name2: String
         }
-        /// Rank all layouts for the currently specified language. A higher score is better.
+
+        /// Rank all layouts for the loaded language.
         cmd rank {}
-        /// Generate a number of layouts and displays the best 10. Note: layouts may not be correct after changing language.
+
+        /// Generate n layouts and display the top 10.
         cmd generate gen g {
             required count: usize
         }
-        /// Improves the the given layout by pinning keys specified in the `config.toml` and reordering everything else.
+
+        /// Improves a layout while pinning the keys specified in `config.toml`.
         cmd improve i optimize {
             required name: String
             required count: usize
         }
-        /// Saves the nth layout that was generated. Optionally, you can provide a name as `-n <name>`.
+
+        /// Saves the nth generated layout.
+        ///
+        /// `<nth> [ -n <name> ]`
         cmd save s {
-            required n: usize
+            required nth: usize
             optional name: String
         }
-        /// Shows the top n sfbs on a layout. 10 by default.
+
+        /// Shows the top n same finger bigrams in a layout.
+        ///
+        /// [ n || 10 ]
         cmd sfbs {
             required name: String
             optional -c, --count count: usize
         }
+
         /// Set a language to be used for analysis. Tries to load corpus when not present.
         cmd language l lang {
             optional language: PathBuf
         }
-        /// Include layouts stored under a different language
+
+        /// Include layouts stored under a different language.
         cmd include {
             required language: String
         }
+
         /// Lists all currently available languages.
         cmd languages langs {}
+
         /// Loads a corpus for a certain language.
         cmd load {
             required language: PathBuf
             optional -a, --all
             optional -r, --raw
         }
-        /// Gives information about a certain ngram. for 2 letter ones, skipgram info will be provided as well.
+
+        /// Gives information about a certain n-gram.
+        ///
+        /// For bigrams, skipgram info will be provided.
         cmd ngram n occ freq {
             required ngram: String
         }
-        /// Refreshes the config, default characters for the analyzer. Will retain previously generated layouts.
+
+        /// Refreshes the config and default characters for the analyzer, retaining generated layouts.
         cmd reload r {}
-        /// Quits the analyzer.
+
+        /// Quit.
         cmd quit q exit {}
     }
-}
-
-#[test]
-fn thing() {
-    fn slice_op<T>(s: &[T]) -> Option<&T> {
-        s.first()
-    }
-
-    let s = [1usize, 2, 3];
-
-    slice_op(&s);   
 }

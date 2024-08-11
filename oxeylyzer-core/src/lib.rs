@@ -1,13 +1,17 @@
-pub mod generate;
-pub mod generate_annealing;
-pub mod language_data;
-pub mod languages_cfg;
-pub mod layout;
-pub mod load_text;
-pub mod translation;
-pub mod trigram_patterns;
-pub mod utility;
-pub mod weights;
+extern crate core;
 
 pub use rayon;
 pub use serde;
+
+pub mod config;
+pub mod corpus_transposition;
+pub mod data_dir;
+pub mod extension;
+pub mod generic;
+pub mod hand;
+pub mod language;
+pub mod layout;
+pub mod load_text;
+pub mod stat;
+pub mod translation;
+pub mod utility;
