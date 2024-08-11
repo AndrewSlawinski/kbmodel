@@ -4,3 +4,12 @@ static/text/*
 static/stats
 static/corpus_configs/custom/*.toml
 static/language_data/reddit.json
+/.idea/codeStyles/codeStyleConfig.xml
+/.idea/inspectionProfiles/Project_Default.xml
+/.idea/.gitignore
+/.idea/git_toolbox_blame.xml
+/.idea/git_toolbox_prj.xml
+/.idea/kbmodel.iml
+/.idea/modules.xml
+/.idea/rust.xml
+/.idea/vcs.xml
