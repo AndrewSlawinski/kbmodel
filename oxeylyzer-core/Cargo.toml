@@ -1,21 +1,20 @@
 [package]
 name = "oxeylyzer-core"
 version = "0.1.0"
-authors = ["O_X_E_Y <lucoerlemans37@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-itertools = "0.12.1"
-serde = { version = "1.0.136", features = ["derive"] }
-serde_json = "1.0.79"
+glob = "0.3.1"
+toml = "0.8.19"
+itertools = "0.13.0"
+serde = { version = "1.0.204", features = ["derive"] }
+serde_json = "1.0.122"
 nanorand = "0.7.0"
-rayon = "1.5.1"
+rayon = "1.10.0"
 file-chunker = "0.1.1"
-anyhow = "1.0.57"
-indexmap = { version = "2.2.6", features = ["serde"] }
-toml = "0.8.12"
-smartstring = { git = "https://github.com/O-X-E-Y/smartstring", features = ["serde"] }
-arrayvec = "0.7.2"
-once_cell = "1.16.0"
+indexmap = { version = "2.3.0", features = ["serde"] }
+once_cell = "1.19.0"
 ansi_rgb = { git = "https://github.com/O-X-E-Y/ansi_rgb" }
-ahash = { version = "0.8.11", features = ["serde"] }
+smartstring = { git = "https://github.com/O-X-E-Y/smartstring", features = ["serde"] }
+num-traits = "0.2.19"
+num-derive = "0.4.2"
