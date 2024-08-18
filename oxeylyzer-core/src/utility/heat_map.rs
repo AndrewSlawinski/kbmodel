@@ -4,8 +4,8 @@ use ansi_rgb::{
     rgb,
     Colorable,
 };
-use std::fmt::Display;
 
+use crate::n_gram::n_gram::NGram;
 use crate::{
     language::language_data::LanguageData,
     layout::layout::FastLayout,
@@ -15,13 +15,12 @@ pub struct Heatmap {
     string: String,
 }
 
-pub fn heatmap_heat(data: &LanguageData, char_u8: u8) -> String {
-    let complement = f64::MAX / *data.characters.get(char_u8 as usize).unwrap_or(&0.0);
+pub fn heatmap_heat(data: &LanguageData, c: char) -> String {
+    let complement = f64::MAX / *data.characters.get(&NGram::from(&[c])).unwrap_or(&0.0);
     let complement = u8::MAX ^ complement as u8;
 
     let heat = rgb(215, complement, complement);
 
-    let c = data.converter.u8_to_char(char_u8);
     let formatted = c.to_string().fg(heat);
 
     return format!("{formatted}");

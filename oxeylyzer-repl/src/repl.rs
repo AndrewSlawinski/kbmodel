@@ -1,8 +1,11 @@
+use crate::flags::ReplCmd::Ngram;
 use crate::flags::{
     Analyze,
     Compare,
     Generate,
     Improve,
+    Include,
+    Load,
     Save,
     Sfbs,
 };
@@ -13,56 +16,66 @@ use indicatif::{
 use itertools::Itertools;
 use oxeylyzer_core::config::config::Config;
 use oxeylyzer_core::corpus_transposition::CorpusConfig;
-use oxeylyzer_core::language::language_data::LanguageData;
-use oxeylyzer_core::layout::layout::{
-    FastLayout,
-    Layout,
+use oxeylyzer_core::data_dir::DataFetch;
+use oxeylyzer_core::language::language_data::{
+    LanguageData,
+    LanguageDataIntermediate,
 };
-use oxeylyzer_core::layout::layout_generation::{
-    LayoutGenerator,
-    Layouts,
-};
-use oxeylyzer_core::load_text;
-use oxeylyzer_core::rayon::iter::IntoParallelIterator;
-use oxeylyzer_core::stat::trigram::Trigram;
+use oxeylyzer_core::layout::layout::FastLayout;
+use oxeylyzer_core::n_gram::n_gram::NGram;
+use oxeylyzer_core::stats::layout_stats::NGramType::Trigram;
 use oxeylyzer_core::translation::Translator;
+use oxeylyzer_core::utility::generator::Generator;
 use oxeylyzer_core::utility::heat_map::{
     heatmap_heat,
     heatmap_string,
 };
-use std::ffi::OsString;
-use std::fs::read_dir;
+use oxeylyzer_core::utility::scorer::Scorer;
 use std::io;
-use std::io::Write;
-use std::rc::Rc;
+use std::io::{
+    Read,
+    Write,
+};
+use std::path::PathBuf;
 
-const ROWS: usize = 3;
-const COLUMNS: usize = 10;
-
-pub struct Repl {
-    layout_generator: LayoutGenerator,
-    layouts: Layouts,
-    temp_generated: Layouts,
+pub struct Repl<'a> {
+    layout_generator: Generator<'a>,
+    layouts: Vec<FastLayout>,
+    temp_generated: Vec<FastLayout>,
     config: Config,
     language_data: LanguageData,
+    scorer: Scorer<'a>,
 }
 
-impl Repl {
+impl<'a> Repl {
     pub fn new() -> Self {
         let config = Config::new();
-        let language_data = LanguageData::new();
 
-        let mut generator = LayoutGenerator::new(Rc::new(&config));
+        let mut file = DataFetch::get_language_data_file(config.info.language.as_str());
+        let mut contents = String::new();
+
+        file.read_to_string(&mut contents).unwrap();
+
+        let mut language_data_intermadiate: LanguageDataIntermediate = serde_json::from_str(contents.as_str()).unwrap();
+
+        let language_data = LanguageData::from(&mut language_data_intermadiate);
+
+        let scorer = Scorer::new(&language_data, &config.weights, &config.info.keyboard_type);
+        let layout_generator = Generator::new(&language_data, &config, &scorer);
+
+        let layouts = DataFetch::load_layouts_in_language(config.info.language.as_str());
 
         return Self {
-            layouts: generator.load_layouts(config.defaults.language.as_str()),
-            layout_generator: generator,
+            layouts,
+            layout_generator,
             temp_generated: Vec::new(),
             config,
+            language_data,
+            scorer,
         };
     }
 
-    pub unsafe fn run(&mut self) {
+    pub fn run(&mut self) {
         loop {
             let line: &str = self.readline().map_err(|e| e.to_string()).unwrap().trim();
 
@@ -76,20 +89,20 @@ impl Repl {
                     println!("Exiting analyzer...");
 
                     break;
-                },
+                }
                 | Ok(false) => continue,
                 | Err(err) => {
                     println!("{err}");
-                },
+                }
             }
         }
     }
 
-    unsafe fn respond(&mut self, line: &str) -> Result<bool, String> {
+    fn respond(&mut self, line: &str) -> Result<bool, String> {
         use crate::flags::Repl;
         use crate::flags::ReplCmd::*;
 
-        let args = shlex::split(line).ok_or("Invalid quotations")?.into_iter().map(std::ffi::OsString::from).collect::<Vec<OsString>>();
+        let args = shlex::split(line).ok_or("Invalid quotations")?.into_iter().map(std::ffi::OsString::from).collect_vec();
 
         let flags = Repl::from_vec(args).map_err(|e| e.to_string())?;
 
@@ -104,109 +117,29 @@ impl Repl {
             | Language(o) => {
                 match o.language {
                     | Some(l) => {
-                        let config = Config::from(l);
+                        self.language(l);
 
-                        let language = l.to_str().ok_or_else(|| format!("Language is invalid utf8: {:?}", l))?;
-
-                        println!("{language:?}");
-
-                        match LayoutGenerator::new(language, config) {
-                            | Ok(generator) => {
-                                self.layout_generator = generator;
-                                self.layouts = self.layout_generator.load_layouts(language);
-                                self.config.defaults.language = language.to_string();
-
-                                println!(
-                                    "Set language to {}. Sfr: {:.2}%",
-                                    &language,
-                                    self.sfr_freq() * 100.0
-                                );
-                            },
-                            | Err(..) => {
-                                return Err(format!("Could not load data for {}", language));
-                            },
-                        }
-                    },
-                    | None => println!("Current language: {}", self.config.defaults.language),
+                        format!("Set language to {l}. Sfr: {:.2}%", self.sfr_freq())
+                    }
+                    | None => format!("{l} not found."),
                 }
-            },
+            }
             | Include(o) => {
-                self.layout_generator.load_layouts(&o.language).into_iter().for_each(|(name, layout)| {
-                    self.layouts.insert(name, layout);
-                });
+                self.include(&o);
 
-                self.layouts.sort_by(|_, a, _, b| a.score.partial_cmp(&b.score).unwrap());
-            },
+                format!("{} has been included.", o.language)
+            }
             | Languages(_) => Self::languages(),
-            | Load(o) => {
-                match (o.all, o.raw) {
-                    | (true, true) => {
-                        return Err("You can't currently generate all corpora as raw".into());
-                    },
-                    | (true, _) => {
-                        for (language, config) in CorpusConfig::all() {
-                            println!("loading data for language: {language}...");
-
-                            load_text::load_data(language.as_str(), config.translator());
-                        }
-                    },
-                    | (false, true) => {
-                        println!("loading raw data for language: {}...", o.language.display());
-
-                        load_text::load_data(o.language, Translator::raw(true));
-                    },
-                    | (false, false) => {
-                        let language = o.language.to_str().ok_or_else(|| format!("Language is invalid utf8: {:?}", o.language))?;
-
-                        let translator = CorpusConfig::new_translator(language, None);
-                        let is_raw_translator = translator.is_raw;
-
-                        println!("loading data for {}...", &language);
-
-                        load_text::load_data(language, translator).map_err(|e| e.to_string())?;
-
-                        if !is_raw_translator
-                        {
-                            let config = Config::try_from();
-
-                            match LayoutGenerator::new(language, config) {
-                                | Ok(generator) => {
-                                    self.config.defaults.language = language.into();
-                                    self.layout_generator = generator;
-
-                                    self.layouts = self.layout_generator.load_layouts(language);
-
-                                    println!(
-                                        "Set language to {}. Sfr: {:.2}%",
-                                        language,
-                                        self.sfr_freq() * 100.0
-                                    );
-                                },
-                                | Err(e) => return Err(e.to_string()),
-                            }
-                        }
-                    },
-                }
-            },
-            | Ngram(o) => {
-                println!("{}", get_ngram_info(&mut language_data, &o.ngram))
-            },
+            | Load(o) => self.load(o),
+            | Ngram(o) => self.n_gram(&mut self.language_data, &o.ngram),
             | Reload(_) => {
-                let config = Config::try_from();
+                self.reload();
 
-                self.config.pins.clone_from(&config.pins);
-
-                match LayoutGenerator::new(&self.config.defaults.language, config) {
-                    | Ok(generator) => {
-                        self.layout_generator = generator;
-                        self.layouts = self.layout_generator.load_layouts(&self.config.defaults.language);
-                    },
-                    | Err(e) => return Err(e.to_string()),
-                }
-            },
+                "Model has been reloaded.".to_string()
+            }
             | Quit(_) => {
                 return Ok(true);
-            },
+            }
         };
 
         println!("{response}");
@@ -214,10 +147,83 @@ impl Repl {
         return Ok(false);
     }
 
-    unsafe fn languages() -> String {
+    fn load(&mut self, o: Load) -> String {
         let mut r = "";
 
-        read_dir("static/language_data").unwrap().for_each(|p| {
+        r = match (o.all, o.raw) {
+            | (true, true) => "You can't currently generate all corpora as raw",
+            | (true, false) => {
+                for (language, config) in CorpusConfig::all() {
+                    r = concat!(r, format!("loading data for language: {language}..."));
+
+                    DataFetch::load_data(language.as_str(), &config.translator());
+                }
+
+                r
+            }
+            | (false, true) => {
+                DataFetch::load_data(o.language.to_str().unwrap(), &Translator::raw(true));
+
+                format!("loading raw data for language: {}...", o.language.display()).as_str()
+            }
+            | (false, false) => {
+                let language = o.language.to_str().ok_or_else(|| format!("Language is invalid utf8: {:?}", o.language)).unwrap();
+
+                let translator = CorpusConfig::new_translator(language, None);
+
+                println!("loading data for {}...", &language);
+
+                DataFetch::load_data(language, &translator);
+
+                if translator.is_raw
+                {
+                    r
+                } else {
+                    self.language_data = LanguageData::new(language);
+                    self.config.info.language = language.to_string();
+                    self.layouts = DataFetch::load_layouts_in_language(language);
+
+                    format!(
+                        "Set language to {}. Sfr: {:.2}%",
+                        language,
+                        self.sfr_freq() * 100.0
+                    ).as_str()
+                }
+            }
+        };
+
+        return r.to_string();
+    }
+
+    fn include(&mut self, o: &Include) {
+        DataFetch::load_layouts_in_language(&o.language).into_iter().for_each(|layout| {
+            self.layouts.push(layout);
+        });
+
+        self.layouts.sort_by(|_, a, _, b| a.score.partial_cmp(&b.score).unwrap());
+    }
+
+    fn language(&mut self, l: PathBuf) {
+        let language = l.to_str().expect(format!("Language is invalid utf8: {:?}", l).as_str());
+
+        self.layout_generator.language_data = &LanguageData::new(language);
+        self.layouts = DataFetch::load_layouts_in_language(language);
+        self.config.info.language = language.to_string();
+    }
+
+    fn reload(&mut self) {
+        self.config = Config::new();
+        self.language_data = LanguageData::new(&self.config.info.language);
+
+        self.layouts = DataFetch::load_layouts_in_language(&self.config.info.language);
+    }
+
+    fn languages() -> String {
+        let mut r = "";
+
+        let files = DataFetch::files_in(vec!["language_data"]);
+
+        files.for_each(|p| {
             let name = p.unwrap().file_name().to_string_lossy().replace('_', " ").replace(".json", "");
 
             if name != "test"
@@ -229,27 +235,27 @@ impl Repl {
         r.to_string()
     }
 
-    unsafe fn save(&mut self, o: &Save) -> String {
+    fn save(&mut self, o: &Save) -> String {
         match self.get_nth(o.nth) {
             | Some(layout) => {
-                self.save_layout(layout.clone(), o.name.clone()).unwrap();
+                self.save_layout(layout.clone(), o.name.clone());
 
                 "".to_string()
-            },
+            }
             | None => {
                 format!(
                     "Index '{}' provided is out of bounds for {} generated layouts",
                     o.nth,
                     self.temp_generated.len()
                 )
-            },
+            }
         }
     }
 
-    unsafe fn improve(&mut self, o: &Improve) -> String {
+    fn improve(&mut self, o: &Improve) -> String {
         let layout = self.layout_by_name(&o.name);
 
-        let layouts = self.layout_generator.generate_n_with_pins_iter(&layout, o.count).collect::<Vec<Layouts>>();
+        let layouts = self.layout_generator.generate_n_with_pins_iter(&layout, o.count).collect_vec();
 
         // self.temp_generated =
         //     self.layout_generator
@@ -273,9 +279,9 @@ impl Repl {
                             o.name_or_number,
                             self.temp_generated.len()
                         )
-                    },
+                    }
                 }
-            },
+            }
             | Err(_) => self.analyze_name(&o.name_or_number).unwrap().to_string(),
         }
     }
@@ -301,7 +307,7 @@ impl Repl {
             | Some(l) => l,
             | None => {
                 return Err(format!("layout {} does not exist!", name));
-            },
+            }
         };
 
         println!("{}", name);
@@ -311,8 +317,8 @@ impl Repl {
 
     fn placeholder_name(&self, layout: &FastLayout) -> Result<String, String> {
         for i in 1..1000 {
-            let new_name_bytes = layout.matrix[10..14].to_vec();
-            let mut new_name = self.language_data.converter.as_string(new_name_bytes.as_slice());
+            let new_name_bytes = layout[10..14].to_vec();
+            let mut new_name = self.language_data.language.as_string(new_name_bytes.as_slice());
 
             new_name.push_str(format!("{}", i).as_str());
 
@@ -331,15 +337,12 @@ impl Repl {
             | None => self.placeholder_name(&layout).unwrap(),
         };
 
-        let mut f = std::fs::OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true).open(format!(
+        let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).open(format!(
             "static/layouts/{}/{}.kb",
             self.config.info.language, new_name
         )).map_err(|e| e.to_string()).unwrap();
 
-        let layout_formatted = layout.formatted_string(&self.language_data.converter);
+        let layout_formatted = layout.formatted_string();
 
         println!("saved {new_name}\n{layout_formatted}");
 
@@ -370,23 +373,23 @@ impl Repl {
         return format!("{}\n{}\nScore: {:.3}", layout_str, stats, score);
     }
 
-    pub fn compare_name(&self, name0: &str, name1: &str) -> String {
+    pub fn compare_name(&self, language_data: &LanguageData, name0: &str, name1: &str) -> String {
         let mut result = String::from(format!("\n{:31}{}", name0, name1));
 
         let l0 = self.layout_by_name(name0);
         let l1 = self.layout_by_name(name1);
 
-        for y in 0..ROWS {
-            for (layout) in [l0, l1].into_iter().enumerate() {
+        for y in 0..3 {
+            for layout in [l0, l1].into_iter() {
                 result.push_str("        ");
 
-                for x in 0..COLUMNS {
-                    if x == COLUMNS / 2
+                for x in 0..10 {
+                    if x == 10 / 2
                     {
                         result.push(' ');
                     }
 
-                    result.push_str(heatmap_heat(&language_data, layout.c(x + 10 * y)).as_str());
+                    result.push_str(heatmap_heat(&language_data, layout.get(x + 10 * y)).as_str());
                 }
             }
 
@@ -473,13 +476,13 @@ impl Repl {
 
                 let mut response = format!("top {} sfbs for {name}:", top_n);
 
-                for (bigram, freq) in self.layout_generator.same_finger_bigrams(layout, &self.language_data.converter, top_n) {
+                for (bigram, freq) in self.layout_generator.same_finger_bigrams(layout, top_n) {
                     response = concat!(response, format!("{bigram}: {:.3}%", freq * 100.0)).to_string()
                 }
-            },
+            }
             | None => {
                 format!("layout {name} does not exist!")
-            },
+            }
         };
     }
 
@@ -507,7 +510,7 @@ impl Repl {
         // print_message(language_data, &mut layouts);
     }
 
-    pub unsafe fn generate(&mut self, generate: &Generate) -> String {
+    pub fn generate(&mut self, generate: &Generate) -> String {
         let amount = generate.count;
 
         if amount == 0
@@ -519,7 +522,12 @@ impl Repl {
 
         let start = std::time::Instant::now();
 
-        (0..amount).into_par_iter().map(|_| self.layout_generator.generate_layout()).collect::<Layouts>().iter().for_each(|x| self.layouts.push(x.clone()));
+        if amount == 1
+        {
+            self.layouts.push(self.layout_generator.generate_layout());
+        } else {
+            self.layout_generator.generate_layouts(amount).iter().for_each(|x| self.layouts.push(x.clone()));
+        }
 
         let time = start.elapsed().as_secs();
 
@@ -528,36 +536,33 @@ impl Repl {
         format!("optimizing {amount} variants took: {time} seconds")
         ).to_string();
 
-        // layouts.sort_by(|l1, l2| l2.score.partial_cmp(&l1.score).unwrap());
+        self.layouts.sort_by(|l1, l2| l2.score.partial_cmp(&l1.score).unwrap());
 
         self.print_message();
 
         return response;
     }
 
-    pub fn get_ngram_info(&self, data: &LanguageData, ngram: &str) -> String {
+    pub fn n_gram(&self, language_data: &LanguageData, ngram: &str) -> String {
         return match ngram.chars().count() {
             | 1 => {
                 let c = ngram.chars().next().unwrap();
-                let u = data.converter.codomain.single(c);
-                let occ = data.characters.get(u as usize).unwrap_or(&0.0) * 100.0;
+                let occ = language_data.characters.get(&NGram::from(&[c])).unwrap_or(&0.0) * 100.0;
 
                 format!("{ngram}: {occ:.3}%")
-            },
+            }
             | 2 => {
-                let bigram: [char; 2] = ngram.chars().collect::<Vec<char>>().try_into().unwrap();
-                let c1 = data.converter.codomain.single(bigram[0]) as usize;
-                let c2 = data.converter.codomain.single(bigram[1]) as usize;
+                let bigram: [char; 2] = ngram.chars().collect_vec().try_into().unwrap();
 
-                let b1 = c1 * data.characters.len() + c2;
-                let b2 = c2 * data.characters.len() + c1;
+                let b1 = c1 * language_data.characters.len() + c2;
+                let b2 = c2 * language_data.characters.len() + c1;
 
                 let rev = bigram.into_iter().rev().collect::<String>();
 
-                let occ_b1 = data.bigrams.get(b1).unwrap_or(&0.0) * 100.0;
-                let occ_b2 = data.bigrams.get(b2).unwrap_or(&0.0) * 100.0;
-                let occ_s = data.skipgrams.get(b1).unwrap_or(&0.0) * 100.0;
-                let occ_s2 = data.skipgrams.get(b2).unwrap_or(&0.0) * 100.0;
+                let occ_b1 = language_data.bigrams.get(b1).unwrap_or(&0.0);
+                let occ_b2 = language_data.bigrams.get(b2).unwrap_or(&0.0);
+                let occ_s = language_data.skipgrams.get(b1).unwrap_or(&0.0);
+                let occ_s2 = language_data.skipgrams.get(b2).unwrap_or(&0.0);
 
                 format!(
                     "{ngram} + {rev}: {:.3}%,\n  {ngram}: {occ_b1:.3}%\n  {rev}: {occ_b2:.3}%\n\
@@ -565,20 +570,16 @@ impl Repl {
                     occ_b1 + occ_b2,
                     occ_s + occ_s2
                 )
-            },
+            }
             | 3 => {
-                let trigram: Trigram<char> = ngram.chars().collect::<Vec<char>>().try_into().unwrap();
+                let trigram: Trigram<char> = ngram.chars().collect_vec().try_into().unwrap();
 
-                let trigram: Trigram<u8> = Trigram(
-                    data.converter.codomain.single(trigram[0]),
-                    data.converter.codomain.single(trigram[1]),
-                    data.converter.codomain.single(trigram[2]),
-                );
+                let trigram: NGram<u8, 3> = Trigram();
 
-                let &(_, occ) = data.trigrams.iter().find(|&&(tf, _)| tf == t).unwrap_or(&(t, 0.0));
+                let &(_, occ) = language_data.trigrams.iter().find(|&&(tf, _)| tf == t).unwrap_or(&(t, 0.0));
 
                 format!("{ngram}: {:.3}%", occ * 100.0)
-            },
+            }
             | _ => "Invalid ngram! It must be 1, 2 or 3 chars long.".to_string(),
         };
     }

@@ -11,6 +11,10 @@ impl Pins {
     fn len(&self) -> usize {
         return self.pins.len();
     }
+
+    pub fn contains(&self, value: &u8) -> bool {
+        return self.pins.contains(value);
+    }
 }
 
 impl Default for Pins {

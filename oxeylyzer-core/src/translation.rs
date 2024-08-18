@@ -80,10 +80,10 @@ impl Translator {
             match self.table.get(&c) {
                 | Some(replacement) => {
                     res.push_str(replacement);
-                },
+                }
                 | None => {
                     res.push(' ');
-                },
+                }
             }
         }
 
@@ -170,8 +170,7 @@ impl TranslatorBuilder {
     }
 
     pub fn letter_to_lowercase(&mut self, letter: char) -> &mut Self {
-        self.table
-            .insert(letter, SmartString::<Compact>::from(letter));
+        self.table.insert(letter, SmartString::<Compact>::from(letter));
 
         let mut upper_string = letter.to_uppercase();
 
@@ -289,25 +288,25 @@ impl TranslatorBuilder {
             | "finnish_repeat" => self.letters_to_lowercase("åäö@"),
             | "french" | "french_qu" | "test" => {
                 self.as_multiple(&FRENCH).letters_to_lowercase("éà")
-            },
+            }
             | "german" => self.letters_to_lowercase("äöüß"),
             | "hungarian" => self.as_multiple(&HUNGARIAN).letters_to_lowercase("áéöóő"),
             | "italian" => self.as_multiple(&ITALIAN),
             | "korean" => {
                 self.as_space("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ").keep("ㅣㅡㅜㅏㅊㅈㅅㅂㅁㄹㄷㄴㄱㅇㅋㅌㅍㅐㅑㅓㅕㅗㅎㅔㅛㅠ").one_to_one("ㄲㄸㅆㅃㅉㅒㅖ", "ㄱㄷㅅㅂㅈㅐㅔ").as_multiple(&KOREAN)
-            },
+            }
             | "luxembourgish" => self.as_multiple(&LUXEMBOURGISH),
             | "polish" => self.as_multiple(&POLISH).letters_to_lowercase("łęż"),
             | "russian" => {
                 self.letters_to_lowercase("абвгдеёжзийклмнопрстуфхцчшщъыьэюя").as_space("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
-            },
+            }
             | "spanish" => self.as_multiple(&SPANISH),
             | "swedish" => self.letters_to_lowercase("äåö"),
             | "welsh" => self.as_multiple(&WELSH).letters_to_lowercase("ΔⳐ"),
             | "welsh_pure" => self.as_multiple(&WELSH),
             | _ => {
                 panic!("This language is not available.");
-            },
+            }
         };
     }
 

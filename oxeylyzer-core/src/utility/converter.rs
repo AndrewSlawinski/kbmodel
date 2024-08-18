@@ -1,3 +1,6 @@
+use crate::language::language_data::LanguageDataIntermediate;
+use crate::n_gram::n_gram::NGram;
+use itertools::Itertools;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 
@@ -8,8 +11,17 @@ pub struct Converter {
 }
 
 impl Converter {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(language_data: &LanguageDataIntermediate) -> Self {
+        let mut converter = Self::default();
+
+        Self::sus_converter_character_data(&language_data.characters, &mut converter);
+        Self::sus_converter_get_bigram_data(&language_data.bigrams, &mut converter);
+        Self::sus_converter_get_bigram_data(&language_data.skipgrams, &mut converter);
+        Self::sus_converter_get_bigram_data(&language_data.skipgrams2, &mut converter);
+        Self::sus_converter_get_bigram_data(&language_data.skipgrams3, &mut converter);
+        Self::sus_converter_get_bigram_data(&language_data.bigrams, &mut converter);
+
+        return converter;
     }
 
     pub fn u8_to_char(&self, c: u8) -> char {
@@ -123,5 +135,48 @@ impl Converter {
 
     pub fn is_empty(&self) -> bool {
         self.codomain.len() == 0
+    }
+
+    // Sus Global Mutation...
+    fn sus_converter_character_data(
+        data: &HashMap<char, f64>,
+        converter: &mut Converter,
+    ) -> Vec<f64> {
+        return data.iter().map(|(x, f)| {
+            converter.insert_single(x.clone());
+
+            return *f;
+        }).collect_vec();
+    }
+
+    fn sus_converter_get_bigram_data(
+        data: &HashMap<String, f64>,
+        converter: &mut Converter,
+    ) -> Vec<f64> {
+        let len = 0..converter.len();
+        // vec![(0, '0'), (0, '1'), (1, '0'), (1, '1')]
+
+        return len.clone().cartesian_product(len).map(|(c0, c1)| converter.as_string(&[c0, c1])).map(|bigram| data.get(&bigram).cloned().unwrap_or(0.0)).collect_vec();
+    }
+
+    fn sus_converter_get_trigram_data(
+        data: &HashMap<String, f64>,
+        converter: &mut Converter,
+    ) -> Vec<(NGram<u8, 3>, f64)> {
+        let mut res = Vec::new();
+
+        for (trigram, freq) in data {
+            let trigram_vec = trigram.chars().collect_vec();
+            let tv_u8 = converter.to(trigram_vec);
+
+            if tv_u8[0] != tv_u8[1] && tv_u8[1] != tv_u8[2]
+            {
+                let new_trigram = NGram::from(&[tv_u8[0], tv_u8[1], tv_u8[2]]);
+
+                res.push((new_trigram, freq.clone()));
+            }
+        }
+
+        return res;
     }
 }

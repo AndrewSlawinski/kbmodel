@@ -1,4 +1,9 @@
-use crate::generic::Fixed;
+use crate::type_def::{
+    Fixed,
+    COLUMNS,
+    ROWS,
+};
+use itertools::Itertools;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
 pub struct Pair(pub usize, pub usize);
@@ -14,21 +19,32 @@ impl Pair {
 
     #[inline]
     pub fn affects_scissor(&self) -> bool {
-        return unsafe {
-            *AFFECTS_SCISSOR.get_unchecked(self.0) || *AFFECTS_SCISSOR.get_unchecked(self.1)
-        };
+        return *AFFECTS_SCISSOR.get(self.0).unwrap() || *AFFECTS_SCISSOR.get(self.1).unwrap();
     }
 
     #[inline]
     pub fn affects_lsb(&self) -> bool {
-        return unsafe { *AFFECTS_LSB.get_unchecked(self.0) || *AFFECTS_LSB.get_unchecked(self.1) };
+        return *AFFECTS_LSB.get(self.0).unwrap() || *AFFECTS_LSB.get(self.1).unwrap();
     }
 
     #[inline]
     pub fn affects_pinky_ring(&self) -> bool {
-        return unsafe {
-            *AFFECTS_PINKY_RING.get_unchecked(self.0) || *AFFECTS_PINKY_RING.get_unchecked(self.1)
-        };
+        return *AFFECTS_PINKY_RING.get(self.0).unwrap() || *AFFECTS_PINKY_RING.get(self.1).unwrap();
+    }
+
+    pub fn distance(&self, rhs: &Self) -> Self {
+        return Self(self.0 - rhs.0, self.1 - rhs.1);
+    }
+
+    pub fn squared(&self) -> Self {
+        return Self(self.0.pow(2), self.1.pow(2));
+    }
+
+    pub fn all_key_indices() -> Vec<Self> {
+        let columns = 0..COLUMNS;
+        let rows = 0..ROWS;
+
+        return columns.cartesian_product(rows).map(|x| Pair(x.0, x.1)).collect_vec();
     }
 }
 

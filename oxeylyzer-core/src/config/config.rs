@@ -1,4 +1,5 @@
 use crate::{
+    config::finger_to_column::FingerToColumn,
     config::info::Info,
     config::pins::Pins,
     config::weights::weights::Weights,
@@ -12,6 +13,7 @@ pub struct Config {
     pub info: Info,
     pub weights: Weights,
     pub pins: Pins,
+    pub finger_to_column: FingerToColumn,
 }
 
 impl Default for Config {
@@ -20,6 +22,7 @@ impl Default for Config {
             info: Default::default(),
             weights: Default::default(),
             pins: Default::default(),
+            finger_to_column: Default::default(),
         };
     }
 }

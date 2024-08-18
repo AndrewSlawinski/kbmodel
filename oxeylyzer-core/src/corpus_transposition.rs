@@ -3,6 +3,7 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use glob::glob;
+use itertools::Itertools;
 use serde::Deserialize;
 
 use crate::translation::*;
@@ -154,7 +155,7 @@ impl CorpusConfig {
                 | Ok(c) => Some((l, c)),
                 | Err(..) => None,
             };
-        }).collect::<Vec<_>>();
+        }).collect_vec();
     }
 
     pub fn new_translator(language: &str, preferred_folder: Option<&str>) -> Translator {

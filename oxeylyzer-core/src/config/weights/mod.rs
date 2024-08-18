@@ -1,7 +1,7 @@
 pub mod weights;
-mod alternates;
-mod bigrams;
-mod redirects;
-mod rolls;
-mod fingers;
-mod bias;
+pub mod alternates;
+pub mod bigrams;
+pub mod redirects;
+pub mod rolls;
+pub mod fingers;
+pub mod bias;

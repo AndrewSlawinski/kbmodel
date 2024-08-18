@@ -3,7 +3,7 @@ use Hand::*;
 use crate::hand::finger::Finger;
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug)]
+#[derive(Eq, Copy, Clone, Debug, PartialEq)]
 pub enum Hand {
     Left,
     Right,

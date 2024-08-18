@@ -1,4 +1,5 @@
 pub mod config;
-mod info;
-pub mod weights;
+pub mod info;
 pub mod pins;
+pub mod weights;
+mod finger_to_column;

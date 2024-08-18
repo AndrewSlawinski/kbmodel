@@ -7,8 +7,8 @@ edition = "2021"
 glob = "0.3.1"
 toml = "0.8.19"
 itertools = "0.13.0"
-serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.122"
+serde = { version = "1.0.206", features = ["derive"] }
+serde_json = "1.0.124"
 nanorand = "0.7.0"
 rayon = "1.10.0"
 file-chunker = "0.1.1"

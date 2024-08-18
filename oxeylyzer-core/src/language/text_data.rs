@@ -190,7 +190,7 @@ impl<'a> From<(&TextNgrams<'a, 5>, &str, &Translator)> for TextData {
         let mut res = TextData::new(language);
 
         for (ngram, freq) in ngrams.n_grams.iter() {
-            let first = unsafe { ngram.chars().next().unwrap_unchecked() };
+            let first = ngram.chars().next().unwrap();
 
             if first != ' '
             {

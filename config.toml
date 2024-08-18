@@ -1,43 +1,59 @@
-pins = """
-..... ..xx.
-...x. .xxxx
-..... ..x..
-"""
-
 [info]
 language = "english"
 keyboard_type = "ansi"
 trigram_precision = 1000
 
-[alternates]
-base = 0.9
-same_finger_skips = 0.6
+[pins]
+pins = """
+.....  ..xx.
+...x.  .xxxx
+.....  ..x..
+     xx
+"""
 
-[bigrams]
-pinky_ring = 0.2
-lateral_stretch = 2.0
-d_same_finger_ratio = 0.40
+[finger_to_column]
+finger_to_column = """
+01233  66789
+01233  66789
+01233  66789
+44444  55555
+"""
 
-[redirects]
-base = 1.4
-same_finger_skips = 2.2
-bad = 4.5
-bad_same_finger_skips = 6.0
+# Negative values will penalize the total score.
+# Set to 0 to exclude form the total score.
 
-[rolls]
-inward = 1.5
-outward = 1.35
+[effort.hand]
+left = 1.0
+right = 1.0
 
-[fingers]
-speed = 28.0
-heatmap = 1.70
-scissors = 2.5
-onehands = 0.9
-lateral_penalty = 1.0
-overuse_penalty = 2.5
+[effort.fingers]
+lateral_move = -2.0
 
-[fingers.bias]
-pinky = 9.0
+[effort.fingers.preference]
+pinky = 1.0
 ring = 14.0
 middle = 20.0
 index = 20.0
+
+# Same Finger Skipgrams will be weighted by `base * (1 ^ -n)`
+[brigams.same_finger]
+base = -1
+bad = -1.25
+
+[bigrams.scissors]
+base = 0
+bad = -2
+
+[trigrams.alternates]
+base = 0
+
+[trigrams.redirects]
+base = 0.0
+bad = -2.0
+
+[trigrams.rolls]
+in_roll = 3.0
+out_roll = 2.0
+
+[trigrams.one_hands]
+base = 1.0
