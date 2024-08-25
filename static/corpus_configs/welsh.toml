@@ -1,3 +1,0 @@
-inherits = ["default", "welsh_pure"]
-
-keep = "ΔⳐ"

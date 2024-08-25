@@ -1,5 +1,0 @@
-inherits = ["default"]
-
-[one_to_one]
-from = "；　，。—、）﹔﹐（﹕’‘．﹖"
-to = "; ,.-,);,(;''.?"
