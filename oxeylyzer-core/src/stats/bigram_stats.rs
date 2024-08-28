@@ -1,13 +1,10 @@
-use crate::config::weights::weights::Weights;
 use crate::language::language_data::LanguageData;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
+pub use std::collections::hash_map::Entry;
 
-use crate::layout::layout::FastLayout;
-use crate::n_gram::bigram_type::BigramType;
-use crate::n_gram::n_gram::NGram;
-use crate::type_def::FingerSpeeds;
+use crate::ngram::bigram_type::BigramType;
+use crate::type_def::Fixed;
 use crate::utility::pair::Pair;
+use indexmap::IndexMap;
 use std::fmt;
 use std::fmt::{
     Display,
@@ -16,131 +13,86 @@ use std::fmt::{
 use std::ops::Index;
 
 #[derive(Default, Clone)]
-pub struct BigramStats {
-    inner: HashMap<BigramType, f64>,
+pub struct BigramStats
+{
+    inner: IndexMap<BigramType, f64>,
 }
 
-impl Index<BigramType> for BigramStats {
+impl Index<BigramType> for BigramStats
+{
     type Output = f64;
 
-    fn index(&self, index: BigramType) -> &Self::Output {
+    fn index(&self, index: BigramType) -> &Self::Output
+    {
         return &self.inner[&index];
     }
 }
 
-impl BigramStats {
-    pub fn new(
-        language_data: &LanguageData,
-        layout: &FastLayout,
-        weights: &Weights,
-        all_bigrams: &[BigramType; 64],
-    ) -> Self {
-        let mut stats = BigramStats::default();
+impl BigramStats
+{
+    pub fn new(language_data: &LanguageData, char_indices: &Fixed<u8>) -> Self
+    {
+        let mut stats = IndexMap::new();
 
-        for (bigram, freq) in language_data.bigrams.iter() {
-            let pattern = BigramType::get_pattern(layout, bigram, all_bigrams);
-
-            match stats.inner.entry(pattern) {
-                | Entry::Occupied(mut v) => {
-                    *v.get_mut() += freq;
-                    *v.get_mut() *= match pattern {
-                        | BigramType::Scissors => weights.bigrams.scissors,
-                        | BigramType::SameFingerBigram => 1.,
-                        | BigramType::SameFingerSkipGram => weights.bigrams.same_finger_skip,
-                        | BigramType::SameFingerSkip2Gram => {
-                            weights.bigrams.same_finger_skip * 2_f64.recip()
-                        }
-                        | BigramType::SameFingerSkip3Gram => {
-                            weights.bigrams.same_finger_skip * 3_f64.recip()
-                        }
-                        | BigramType::LateralStretchBigrams => weights.bigrams.lateral_stretch,
-                        | BigramType::Other => 0.,
-                        | BigramType::Invalid => 0.,
-                    }
-                }
-                | Entry::Vacant(v) => {
-                    v.insert(0.);
-                }
-            };
+        for (bigram_type, bigrams) in vec![
+            (BigramType::SFB, &language_data.bigrams),
+            (BigramType::Skip1, &language_data.skip_grams),
+            (BigramType::Skip2, &language_data.skip2_grams),
+            (BigramType::Skip3, &language_data.skip3_grams),
+        ]
+        {
+            stats.insert(
+                bigram_type,
+                Self::bigram_percent(char_indices, bigrams, language_data.characters.len()),
+            );
         }
 
-        return stats;
-
-        // let stats = Self::bigram_percent(language_data, layout, finger_speeds);
-        //
-        // return Self {
-        //     inner: Default::default(),
-        //     scissors: Self::scissor_score(language_data, layout, weights),
-        //     pinky_ring: Self::pinky_ring_score(language_data, layout, weights),
-        //     same_finger_bigram: stats[0],
-        //     same_finger_skipgram: stats[1],
-        //     same_finger_skip2_gram: stats[2],
-        //     same_finger_skip3_gram: stats[3],
-        //     lateral_stretch_bigrams: Self::lateral_stretch_bigram_score(
-        //         language_data,
-        //         layout,
-        //         weights,
-        //     ) / weights.bigrams.lateral_stretch,
-        // };
+        return Self { inner: stats };
     }
 
-    pub fn total_score(&self) -> f64 {
+    pub fn total_score(&self) -> f64
+    {
         return self.inner.values().sum();
     }
 
-    fn bigram_percent(
-        language_data: &LanguageData,
-        layout: &FastLayout,
-        finger_speeds: &FingerSpeeds,
-    ) -> Vec<f64> {
-        let mut stats = Vec::new();
-
-        for bigram in vec![
-            &language_data.bigrams,
-            &language_data.skip_grams,
-            &language_data.skip2_grams,
-            &language_data.skip3_grams,
-        ] {
-            let mut res = 0.0;
-
-            for (pair, _) in finger_speeds {
-                let c0 = layout[pair.0];
-                let c1 = layout[pair.1];
-
-                res += bigram.get(&NGram::from(&[c0, c1])).unwrap_or(&0.0);
-                res += bigram.get(&NGram::from(&[c1, c0])).unwrap_or(&0.0);
-            }
-
-            stats.push(res);
-        }
-
-        return stats;
-    }
-
-    #[inline]
-    pub fn lateral_stretch_bigram_score(
-        language_data: &LanguageData,
-        layout: &FastLayout,
-        weights: &Weights,
-        indices: &[Pair],
-    ) -> f64 {
+    fn bigram_percent(char_indices: &Fixed<u8>, data: &Vec<f64>, chars_len: usize) -> f64
+    {
         let mut res = 0.0;
 
-        for pair in indices {
-            let c0 = layout[pair.0];
-            let c1 = layout[pair.1];
+        let mut bigram_counter = 0;
 
-            res += language_data.bigrams.get(&NGram::from(&[c0, c1])).unwrap_or(&0.0);
+        for i in 0 .. 30
+        {
+            for j in 0 .. 30
+            {
+                if Pair(i, j).is_sfb()
+                {
+                    let c0 = char_indices[i] as usize;
+                    let c1 = char_indices[j] as usize;
 
-            res += language_data.bigrams.get(&NGram::from(&[c1, c0])).unwrap_or(&0.0);
+                    let k = c0 * chars_len + c1;
+                    let p = data.get(k).unwrap_or(&0.0);
+
+                    if bigram_counter == 0
+                    {
+                        println!("{} {} {}: {}", k, c0, c1, p);
+                    }
+
+                    res += p;
+
+                    bigram_counter += 1;
+                }
+            }
         }
 
-        return res * weights.bigrams.lateral_stretch;
+        return res;
     }
 }
 
-impl Display for BigramStats {
-    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+impl Display for BigramStats
+{
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
+    {
         let mut format = "".to_string();
 
         self.inner.iter().for_each(|(key, value)| {
@@ -152,68 +104,3 @@ impl Display for BigramStats {
         write!(f, "{}", format.clone())
     }
 }
-
-pub const LATERAL_STRETCH_BIGRAM_INDICES: [Pair; 16] = [
-    // left
-    Pair(2, 4),
-    Pair(2, 14),
-    Pair(2, 24),
-    Pair(12, 4),
-    Pair(12, 14),
-    Pair(22, 4),
-    Pair(22, 14),
-    Pair(22, 24),
-    // right
-    Pair(5, 7),
-    Pair(5, 17),
-    Pair(5, 27),
-    Pair(15, 7),
-    Pair(15, 17),
-    Pair(15, 27),
-    Pair(25, 17),
-    Pair(25, 27),
-];
-
-pub const PINKY_RING_INDICES: [Pair; 18] = [
-    Pair(0, 1),
-    Pair(0, 11),
-    Pair(0, 21),
-    Pair(11, 1),
-    Pair(11, 11),
-    Pair(11, 21),
-    Pair(21, 1),
-    Pair(21, 11),
-    Pair(21, 21),
-    // right
-    Pair(8, 9),
-    Pair(8, 19),
-    Pair(8, 29),
-    Pair(18, 9),
-    Pair(18, 19),
-    Pair(18, 29),
-    Pair(28, 9),
-    Pair(28, 19),
-    Pair(28, 29),
-];
-
-pub const SCISSOR_INDICES: [Pair; 17] = [
-    Pair(0, 21),
-    Pair(1, 22),
-    Pair(6, 27),
-    Pair(7, 28),
-    Pair(8, 29),
-    Pair(1, 20),
-    Pair(2, 21),
-    Pair(3, 22),
-    Pair(8, 27),
-    Pair(9, 28),
-    //pinky->ring 1u stretches
-    Pair(0, 11),
-    Pair(9, 18),
-    Pair(10, 21),
-    Pair(19, 28),
-    //inner index scissors (no qwerty `ni` because of stagger)
-    Pair(2, 24),
-    Pair(22, 4),
-    Pair(5, 27),
-];

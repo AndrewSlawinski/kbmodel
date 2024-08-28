@@ -1,34 +1,33 @@
 use crate::{
     config::finger_to_column::FingerToColumn,
     config::info::Info,
-    config::pins::Pins,
-    config::weights::weights::Weights,
 };
 use serde::Deserialize;
 use std::fs::File;
 use std::io::Read;
 
 #[derive(Deserialize, Clone)]
-pub struct Config {
+pub struct Config
+{
     pub info: Info,
-    pub weights: Weights,
-    pub pins: Pins,
     pub finger_to_column: FingerToColumn,
 }
 
-impl Default for Config {
-    fn default() -> Self {
+impl Default for Config
+{
+    fn default() -> Self
+    {
         return Self {
             info: Default::default(),
-            weights: Default::default(),
-            pins: Default::default(),
             finger_to_column: Default::default(),
         };
     }
 }
 
-impl Config {
-    pub fn new() -> Self {
+impl Config
+{
+    pub fn new() -> Self
+    {
         let mut f = File::open("../../../../config.toml").expect("config.toml is missing.");
 
         let mut buf = String::new();
@@ -41,6 +40,7 @@ impl Config {
 }
 
 #[test]
-fn test() {
+fn test()
+{
     Config::default();
 }

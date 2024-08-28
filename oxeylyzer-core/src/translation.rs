@@ -187,10 +187,8 @@ impl TranslatorBuilder
     {
         for (domain, codomain) in trans
         {
-            self.table.insert(
-                domain.clone(),
-                SmartString::<Compact>::from(codomain.clone()),
-            );
+            self.table
+                .insert(domain.clone(), SmartString::<Compact>::from(*codomain));
         }
 
         return self;

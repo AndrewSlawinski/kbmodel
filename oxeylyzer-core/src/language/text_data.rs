@@ -1,4 +1,4 @@
-use crate::language::text_n_grams::TextNgrams;
+use crate::language::text_ngrams::TextNgrams;
 use crate::translation::Translator;
 use indexmap::IndexMap;
 use serde::{
@@ -12,7 +12,8 @@ use smartstring::{
 use std::path::PathBuf;
 
 #[derive(Default, Debug, Serialize, Deserialize)]
-pub struct TextData {
+pub struct TextData
+{
     language: String,
     characters: IndexMap<char, f64>,
 
@@ -36,8 +37,10 @@ pub struct TextData {
     trigram_sum: f64,
 }
 
-impl std::fmt::Display for TextData {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl std::fmt::Display for TextData
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+    {
         write!(
             f,
             "{{\
@@ -60,15 +63,18 @@ impl std::fmt::Display for TextData {
     }
 }
 
-impl TextData {
-    pub fn new(language: &str) -> Self {
+impl TextData
+{
+    pub fn new(language: &str) -> Self
+    {
         return Self {
             language: language.replace(' ', "_").to_lowercase().to_string(),
             ..Default::default()
         };
     }
 
-    fn add_n_subsequent(&mut self, n: usize, ngram: &str, freq: f64) {
+    fn add_n_subsequent(&mut self, n: usize, ngram: &str, freq: f64)
+    {
         let mut chars = ngram.chars();
         let c1 = chars.next().unwrap();
 
@@ -79,11 +85,13 @@ impl TextData {
             // take first, first 2 etc chars of the trigram every time for the appropriate stat
             // as long as they don't contain spaces. return `c2` so I don't iter.next() too much
 
-            let c2 = match chars.next() {
-                | Some(c2) if n > 1 && c2 != ' ' => {
+            let c2 = match chars.next()
+            {
+                | Some(c2) if n > 1 && c2 != ' ' =>
+                {
                     self.add_bigram([c1, c2], freq);
                     c2
-                }
+                },
                 | _ => ' ',
             };
 
@@ -116,43 +124,68 @@ impl TextData {
         }
     }
 
-    fn add_character(&mut self, c: char, freq: f64) {
-        self.characters.entry(c).and_modify(|e| *e += freq).or_insert(freq);
+    fn add_character(&mut self, c: char, freq: f64)
+    {
+        self.characters
+            .entry(c)
+            .and_modify(|e| *e += freq)
+            .or_insert(freq);
 
         self.char_sum += freq;
     }
 
-    fn add_bigram(&mut self, bigram: [char; 2], freq: f64) {
-        self.bigrams.entry(SmartString::from_iter(bigram)).and_modify(|e| *e += freq).or_insert(freq);
+    fn add_bigram(&mut self, bigram: [char; 2], freq: f64)
+    {
+        self.bigrams
+            .entry(SmartString::from_iter(bigram))
+            .and_modify(|e| *e += freq)
+            .or_insert(freq);
 
         self.bigram_sum += freq;
     }
 
-    fn add_skipgram(&mut self, skipgram: [char; 2], freq: f64) {
-        self.skipgrams.entry(SmartString::from_iter(skipgram)).and_modify(|e| *e += freq).or_insert(freq);
+    fn add_skipgram(&mut self, skipgram: [char; 2], freq: f64)
+    {
+        self.skipgrams
+            .entry(SmartString::from_iter(skipgram))
+            .and_modify(|e| *e += freq)
+            .or_insert(freq);
 
         self.skipgram_sum += freq;
     }
 
-    fn add_skipgram2(&mut self, skipgram: [char; 2], freq: f64) {
-        self.skipgrams2.entry(SmartString::from_iter(skipgram)).and_modify(|e| *e += freq).or_insert(freq);
+    fn add_skipgram2(&mut self, skipgram: [char; 2], freq: f64)
+    {
+        self.skipgrams2
+            .entry(SmartString::from_iter(skipgram))
+            .and_modify(|e| *e += freq)
+            .or_insert(freq);
 
         self.skipgram2_sum += freq;
     }
 
-    fn add_skipgram3(&mut self, skipgram: [char; 2], freq: f64) {
-        self.skipgrams3.entry(SmartString::from_iter(skipgram)).and_modify(|e| *e += freq).or_insert(freq);
+    fn add_skipgram3(&mut self, skipgram: [char; 2], freq: f64)
+    {
+        self.skipgrams3
+            .entry(SmartString::from_iter(skipgram))
+            .and_modify(|e| *e += freq)
+            .or_insert(freq);
 
         self.skipgram3_sum += freq;
     }
 
-    fn add_trigram(&mut self, trigram: [char; 3], freq: f64) {
-        self.trigrams.entry(SmartString::from_iter(trigram)).and_modify(|e| *e += freq).or_insert(freq);
+    fn add_trigram(&mut self, trigram: [char; 3], freq: f64)
+    {
+        self.trigrams
+            .entry(SmartString::from_iter(trigram))
+            .and_modify(|e| *e += freq)
+            .or_insert(freq);
 
         self.trigram_sum += freq;
     }
 
-    pub fn save(&self, pass: &bool) {
+    pub fn save(&self, pass: &bool)
+    {
         use std::fs::OpenOptions;
         use std::io::Write;
 
@@ -165,7 +198,9 @@ impl TextData {
         let data_dir_str = if *pass
         {
             "static/language_data_raw"
-        } else {
+        }
+        else
+        {
             "static/language_data"
         };
 
@@ -179,17 +214,26 @@ impl TextData {
 
         let file_name = format!("{}/{}.json", data_dir.to_str().unwrap(), self.language);
 
-        let file = OpenOptions::new().write(true).create(true).truncate(true).open(file_name);
+        let file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(file_name);
 
-        file.unwrap().write_all(serializer.into_inner().as_slice()).unwrap();
+        file.unwrap()
+            .write_all(serializer.into_inner().as_slice())
+            .unwrap();
     }
 }
 
-impl<'a> From<(&TextNgrams<'a, 5>, &str, &Translator)> for TextData {
-    fn from((ngrams, language, translator): (&TextNgrams<5>, &str, &Translator)) -> Self {
+impl<'a> From<(&TextNgrams<'a, 5>, &str, &Translator)> for TextData
+{
+    fn from((ngrams, language, translator): (&TextNgrams<5>, &str, &Translator)) -> Self
+    {
         let mut res = TextData::new(language);
 
-        for (ngram, freq) in ngrams.n_grams.iter() {
+        for (ngram, freq) in ngrams.ngrams.iter()
+        {
             let first = ngram.chars().next().unwrap();
 
             if first != ' '
@@ -201,55 +245,78 @@ impl<'a> From<(&TextNgrams<'a, 5>, &str, &Translator)> for TextData {
                     let mut trans = translator.translate(ngram);
                     let count = trans.chars().count();
 
-                    match count {
-                        | 5.. => {
+                    match count
+                    {
+                        | 5 .. =>
+                        {
                             trans.push(' ');
 
                             let first_t_len = count.max(1);
 
-                            let it1 = 0..count.min(first_t_len);
+                            let it1 = 0 .. count.min(first_t_len);
                             // trans.char_indices().map(|(i, _)| i).take(first_t_len);
 
-                            let it2 = 5..count.min(5 + first_t_len);
+                            let it2 = 5 .. count.min(5 + first_t_len);
                             // trans
                             // .char_indices()
                             // .map(|(i, _)| i)
                             // .skip(5)
                             // .take(first_t_len);
 
-                            it1.zip(it2).map(|(i1, i2)| &trans[i1..i2]).for_each(|ngram| res.add_n_subsequent(5, ngram, *freq as f64));
-                        }
+                            it1.zip(it2)
+                                .map(|(i1, i2)| &trans[i1 .. i2])
+                                .for_each(|ngram| res.add_n_subsequent(5, ngram, *freq as f64));
+                        },
                         | 4 | 3 | 2 | 1 => res.add_n_subsequent(count, &trans, *freq as f64),
 
-                        | _ => {}
+                        | _ =>
+                        {},
                     }
                 }
             }
         }
 
-        res.characters.iter_mut().for_each(|(_, f)| *f /= res.char_sum);
+        res.characters
+            .iter_mut()
+            .for_each(|(_, f)| *f /= res.char_sum);
 
-        res.bigrams.iter_mut().for_each(|(_, f)| *f /= res.bigram_sum);
+        res.bigrams
+            .iter_mut()
+            .for_each(|(_, f)| *f /= res.bigram_sum);
 
-        res.skipgrams.iter_mut().for_each(|(_, f)| *f /= res.skipgram_sum);
+        res.skipgrams
+            .iter_mut()
+            .for_each(|(_, f)| *f /= res.skipgram_sum);
 
-        res.skipgrams2.iter_mut().for_each(|(_, f)| *f /= res.skipgram2_sum);
+        res.skipgrams2
+            .iter_mut()
+            .for_each(|(_, f)| *f /= res.skipgram2_sum);
 
-        res.skipgrams3.iter_mut().for_each(|(_, f)| *f /= res.skipgram3_sum);
+        res.skipgrams3
+            .iter_mut()
+            .for_each(|(_, f)| *f /= res.skipgram3_sum);
 
-        res.trigrams.iter_mut().for_each(|(_, f)| *f /= res.trigram_sum);
+        res.trigrams
+            .iter_mut()
+            .for_each(|(_, f)| *f /= res.trigram_sum);
 
-        res.characters.sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
+        res.characters
+            .sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
 
-        res.bigrams.sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
+        res.bigrams
+            .sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
 
-        res.skipgrams.sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
+        res.skipgrams
+            .sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
 
-        res.skipgrams2.sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
+        res.skipgrams2
+            .sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
 
-        res.skipgrams3.sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
+        res.skipgrams3
+            .sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
 
-        res.trigrams.sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
+        res.trigrams
+            .sort_by(|_, f1, _, f2| f2.partial_cmp(f1).unwrap());
 
         return res;
     }

@@ -1,6 +1,4 @@
 pub mod converter;
-pub mod heat_map;
+pub mod extension;
 pub mod pair;
 pub mod scorer;
-pub mod generator;
-pub mod extension;
