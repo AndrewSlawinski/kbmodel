@@ -9,10 +9,11 @@ oxeylyzer-core = { path = "../oxeylyzer-core" }
 shlex = "1.3.0"
 indicatif = { version = "0.17.8", features = ["rayon"] }
 ansi_rgb = { git = "https://github.com/O-X-E-Y/ansi_rgb" }
-indexmap = "2.3.0"
-serde = { version = "1.0.204", features = ["derive"] }
-serde_json = "1.0.122"
+indexmap = "2.5.0"
+serde = { version = "1.0.209", features = ["derive"] }
+serde_json = "1.0.127"
 glob = "0.3.1"
 toml = "0.8.19"
 itertools = "0.13.0"
 xflags = { git = "https://github.com/O-X-E-Y/xflags/" }
+rayon = "1.10.0"

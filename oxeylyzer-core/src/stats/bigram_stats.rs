@@ -1,10 +1,10 @@
-use crate::language::language_data::LanguageData;
-pub use std::collections::hash_map::Entry;
-
-use crate::ngram::bigram_type::BigramType;
+use crate::language_data::LanguageData;
+use crate::stats::bigram_stats::BType::*;
+use crate::stats::layout_stats::LayoutStats;
 use crate::type_def::Fixed;
-use crate::utility::pair::Pair;
 use indexmap::IndexMap;
+pub use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{
     Display,
@@ -12,17 +12,46 @@ use std::fmt::{
 };
 use std::ops::Index;
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+pub enum BType
+{
+    SFB,
+    LSB,
+    IRB,
+    ORB,
+    AB,
+    Repeat,
+    S,
+}
+
+impl BType
+{
+    fn f(&self) -> fn(a: &mut [u8]) -> bool
+    {
+        return match self
+        {
+            | SFB => LayoutStats::is_sf,
+            | LSB => LayoutStats::is_lsb,
+            | IRB => LayoutStats::is_sf,
+            | ORB => LayoutStats::is_sf,
+            | AB => LayoutStats::is_sf,
+            | Repeat => LayoutStats::is_sf,
+            | S => LayoutStats::is_sf,
+        };
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct BigramStats
 {
-    inner: IndexMap<BigramType, f64>,
+    pub inner: IndexMap<BType, f32>,
 }
 
-impl Index<BigramType> for BigramStats
+impl Index<BType> for BigramStats
 {
-    type Output = f64;
+    type Output = f32;
 
-    fn index(&self, index: BigramType) -> &Self::Output
+    fn index(&self, index: BType) -> &Self::Output
     {
         return &self.inner[&index];
     }
@@ -30,62 +59,98 @@ impl Index<BigramType> for BigramStats
 
 impl BigramStats
 {
-    pub fn new(language_data: &LanguageData, char_indices: &Fixed<u8>) -> Self
+    pub fn new(language_data: &LanguageData, chars: &Fixed<char>, a: &[BType]) -> Self
     {
         let mut stats = IndexMap::new();
 
-        for (bigram_type, bigrams) in vec![
-            (BigramType::SFB, &language_data.bigrams),
-            (BigramType::Skip1, &language_data.skip_grams),
-            (BigramType::Skip2, &language_data.skip2_grams),
-            (BigramType::Skip3, &language_data.skip3_grams),
-        ]
+        for t in a
         {
-            stats.insert(
-                bigram_type,
-                Self::bigram_percent(char_indices, bigrams, language_data.characters.len()),
-            );
+            let p = match t
+            {
+                | SFB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_sf),
+                | LSB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_lsb),
+                | Repeat => Self::p1(chars, &language_data.bigrams, LayoutStats::is_repeat),
+                | S1SFB => Self::p1(chars, &language_data.skipgrams, LayoutStats::is_sf),
+                | S2SFB => Self::p1(chars, &language_data.skipgrams2, LayoutStats::is_sf),
+                | S3SFB => Self::p1(chars, &language_data.skipgrams3, LayoutStats::is_sf),
+                | IRB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_inroll),
+                | ORB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_outroll),
+                | S => Self::p1(chars, &language_data.bigrams, LayoutStats::is_scissor),
+                | AB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_alternate),
+            };
+
+            stats.insert(*t, p);
         }
 
         return Self { inner: stats };
     }
 
-    pub fn total_score(&self) -> f64
+    pub(crate) fn p1(
+        chars: &Fixed<char>,
+        data: &HashMap<String, f32>,
+        f: fn(&mut [u8]) -> bool,
+    ) -> f32
     {
-        return self.inner.values().sum();
+        use rayon::iter::*;
+
+        let a = (0 .. 30).into_par_iter().map(|i| {
+            let b = (0 .. 30).into_par_iter().map(|j| {
+                if f(&mut [i as u8, j as u8])
+                {
+                    let c0 = chars[i];
+                    let c1 = chars[j];
+
+                    if [c0, c1].iter().any(char::is_ascii_punctuation)
+                    {
+                        return 0.;
+                    }
+
+                    let p = data.get(&format!("{}{}", c0, c1)).unwrap_or(&0.);
+
+                    return *p;
+                }
+
+                return 0.;
+            });
+
+            return b.collect::<Vec<f32>>().iter().sum();
+        });
+
+        let q: f32 = a.collect::<Vec<f32>>().iter().sum();
+
+        return q * 100.;
     }
 
-    fn bigram_percent(char_indices: &Fixed<u8>, data: &Vec<f64>, chars_len: usize) -> f64
+    pub(crate) fn p(
+        chars: &Fixed<char>,
+        data: &HashMap<String, f32>,
+        f: fn(&mut [u8]) -> bool,
+    ) -> f32
     {
-        let mut res = 0.0;
-
-        let mut bigram_counter = 0;
+        let mut res = 0.;
 
         for i in 0 .. 30
         {
             for j in 0 .. 30
             {
-                if Pair(i, j).is_sfb()
+                if f(&mut [i as u8, j as u8])
                 {
-                    let c0 = char_indices[i] as usize;
-                    let c1 = char_indices[j] as usize;
+                    let c0 = chars[i];
+                    let c1 = chars[j];
 
-                    let k = c0 * chars_len + c1;
-                    let p = data.get(k).unwrap_or(&0.0);
-
-                    if bigram_counter == 0
+                    if [c0, c1].iter().any(char::is_ascii_punctuation)
                     {
-                        println!("{} {} {}: {}", k, c0, c1, p);
+                        continue;
                     }
 
-                    res += p;
+                    let p = data.get(&format!("{}{}", c0, c1)).unwrap_or(&0.0);
 
-                    bigram_counter += 1;
+                    res += p;
                 }
             }
         }
 
-        return res;
+        return res * 100.;
     }
 }
 
@@ -93,10 +158,11 @@ impl Display for BigramStats
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
     {
-        let mut format = "".to_string();
+        let mut format = "Bigrams:\n".to_string();
 
         self.inner.iter().for_each(|(key, value)| {
-            let s = format!("{:?}: {:.3}%\n", key.clone(), value.clone());
+            let k = format!("{:?}", key);
+            let s = format!("  {:11} {:.3}%\n", k, *value);
 
             format.push_str(s.as_str());
         });

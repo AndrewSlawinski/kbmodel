@@ -1,6 +1,4 @@
 use crate::hand::finger::Finger;
-use crate::ngram::bigram_type::BigramType;
-use crate::ngram::bigram_type::BigramType::*;
 use std::cmp::PartialEq;
 use std::ops::Index;
 
@@ -14,22 +12,6 @@ impl NGramConstraint for Finger {}
 pub struct NGram<T: NGramConstraint, const N: usize>
 {
     pub inner: [T; N],
-}
-
-#[allow(unused)]
-impl NGram<Finger, 2>
-{
-    pub fn get_bigram_pattern(&self) -> BigramType
-    {
-        return if self.is_same_finger_ngram(2)
-        {
-            SFB
-        }
-        else
-        {
-            Other
-        };
-    }
 }
 
 #[allow(unused)]

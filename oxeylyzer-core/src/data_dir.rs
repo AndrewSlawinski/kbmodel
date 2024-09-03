@@ -1,10 +1,7 @@
-use crate::language::text_data::TextData;
-use crate::language::text_ngrams::TextNgrams;
-use crate::translation::Translator;
 use crate::type_def::Fixed;
-use file_chunker::FileChunker;
 use itertools::Itertools;
 
+use crate::layout::layout::Layout;
 use std::collections::HashMap;
 use std::fs::{
     File,
@@ -12,7 +9,6 @@ use std::fs::{
 };
 use std::io::Read;
 use std::path::PathBuf;
-use std::time::Instant;
 
 const ROOT: &str = "static";
 pub struct DataFetch {}
@@ -40,6 +36,45 @@ impl DataFetch
         let paths: Vec<&str> = Vec::from(["layouts", language]);
 
         return Self::files_in(paths);
+    }
+
+    pub fn load_layouts(fetch: ReadDir) -> HashMap<String, Layout>
+    {
+        use std::fs::read_to_string;
+
+        let mut layouts = HashMap::new();
+
+        for entry in fetch.flatten().into_iter()
+        {
+            if entry.path().extension().unwrap() != "kb"
+            {
+                continue;
+            }
+
+            let string = read_to_string(entry.path());
+
+            let name = entry.file_name().to_str().unwrap().to_string();
+            let name = name[.. name.len() - 3].to_string();
+
+            layouts.insert(name, Self::parse_layout(&string.unwrap().as_str()));
+        }
+
+        return layouts;
+    }
+
+    pub fn parse_layout(string: &str) -> Layout
+    {
+        let mut layout = [' '; 30];
+
+        string
+            .to_string()
+            .chars()
+            .filter(|x| !x.is_whitespace())
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, c)| layout[i] = c);
+
+        return Layout::from(layout);
     }
 
     pub fn language_data_file(language_name: &str) -> File
@@ -113,85 +148,5 @@ impl DataFetch
         {
             hash_map.entry(language).or_insert(chars.clone());
         }
-    }
-
-    pub fn load_data(language: &str, translator: &Translator)
-    {
-        use rayon::prelude::{
-            IntoParallelRefIterator,
-            ParallelBridge,
-            ParallelIterator,
-        };
-
-        use smartstring::{
-            LazyCompact,
-            SmartString,
-        };
-
-        let start_total = Instant::now();
-
-        let files = DataFetch::files_in(vec!["text", language]);
-
-        let files = files
-            .par_bridge()
-            .flat_map(|path| File::open(path.unwrap().path()))
-            .map(|file| Self::chunk(&file))
-            .collect::<Vec<_>>();
-
-        let time = Instant::now();
-        let mut now = (time - start_total).as_millis();
-
-        println!("Prepared text files in {now}ms",);
-
-        let strings = files
-            .par_iter()
-            .flat_map(|(chunker, count)| chunker.chunks(*count, Some(' ')).unwrap())
-            .map(|chunk| {
-                std::str::from_utf8(chunk).expect(
-                    "one of the files provided is not encoded as utf-8.\
-                Make sure all files in the directory are valid utf-8.",
-                )
-            })
-            .map(|s| {
-                let mut last_chars = SmartString::<LazyCompact>::new();
-                let mut inter = [' '; 5];
-
-                s.chars()
-                    .rev()
-                    .take(5)
-                    .enumerate()
-                    .for_each(|(i, c)| *inter.get_mut(4 - i).unwrap() = c);
-
-                inter.into_iter().for_each(|c| last_chars.push(c));
-                last_chars.push_str("     ");
-
-                return (s, last_chars);
-            })
-            .collect::<Vec<_>>();
-
-        now = (Instant::now() - time).as_millis();
-        println!("Converted to UTF8 in {now}ms",);
-
-        let quingrams = strings
-            .par_iter()
-            .map(|(s, last)| TextNgrams::new(s, last))
-            .reduce(TextNgrams::default, |accum, new| accum.combine_with(new));
-
-        let text_data = TextData::from((&quingrams, language, translator));
-
-        text_data.save(&translator.is_raw);
-
-        println!(
-            "loading {language} took {}ms",
-            (Instant::now() - start_total).as_millis()
-        );
-    }
-
-    fn chunk(file: &File) -> (FileChunker, usize)
-    {
-        let len = file.metadata().unwrap().len() + 1;
-        let count = (len / (1024 * 1024 * 4)).max(1);
-
-        return (FileChunker::new(&file).unwrap(), count as usize);
     }
 }
