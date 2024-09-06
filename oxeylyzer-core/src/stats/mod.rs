@@ -1,5 +1,9 @@
 pub mod bigram_stats;
+pub mod character_stats;
+pub mod digit_matrix;
 pub mod disjoint_stats;
 pub mod layout_stats;
-mod skip_stats;
+pub mod predicates;
+pub mod skip_stats;
+pub mod stat;
 pub mod trigram_stats;

@@ -14,9 +14,11 @@ use oxeylyzer_core::layout::layout::Layout;
 use oxeylyzer_core::stats::bigram_stats::BType::*;
 use oxeylyzer_core::stats::disjoint_stats::DType::*;
 use oxeylyzer_core::stats::layout_stats::LayoutStats;
+use oxeylyzer_core::stats::predicates::Predicates;
 use oxeylyzer_core::stats::trigram_stats::TType::*;
 use oxeylyzer_core::type_def::Fixed;
 use std::collections::HashMap;
+use std::io;
 
 pub struct Repl
 {
@@ -44,25 +46,25 @@ impl Repl
         };
     }
 
-    pub fn readline() -> std::io::Result<String>
+    pub fn readline() -> io::Result<String>
     {
         use std::io::Write;
 
         let mut buf = String::new();
 
-        write!(std::io::stdout(), "> ")?;
+        write!(io::stdout(), "> ")?;
 
-        std::io::stdout().flush()?;
-        std::io::stdin().read_line(&mut buf)?;
+        io::stdout().flush()?;
+        io::stdin().read_line(&mut buf)?;
 
         return Ok(buf);
     }
 
-    pub fn run(&mut self)
+    pub fn run(&mut self) -> io::Result<()>
     {
         loop
         {
-            let line = Repl::readline().unwrap();
+            let line = Repl::readline()?;
             let line = line.trim();
 
             if line.is_empty()
@@ -77,7 +79,7 @@ impl Repl
                 {
                     println!("Exiting analyzer...");
 
-                    break;
+                    return Ok(());
                 },
                 | Err(err) => println!("{err}"),
             }
@@ -97,7 +99,7 @@ impl Repl
 
         let flags = Repl::from_vec(args).map_err(|e| e.to_string())?;
 
-        let response: String = match flags.subcommand
+        match flags.subcommand
         {
             | Analyze(o) => self.analyze(o),
             | Compare(o) => self.compare(o),
@@ -111,77 +113,130 @@ impl Repl
             },
         };
 
-        println!("{response}");
-
         return Ok(false);
     }
 
-    fn compare(&mut self, o: Compare) -> String
+    fn compare(&mut self, o: Compare)
     {
         let name0 = o.name1;
         let name1 = o.name2;
 
         let mut result = format!("\n{name0:31}{name1}\n");
 
-        let binding = self.analyze(Analyze {
-            name_or_number: name0,
-        });
+        let l0 = self.layout_by_name(name0.as_str());
+        let l1 = self.layout_by_name(name1.as_str());
 
-        let s0 = binding.split('\n').collect_vec();
+        if l0.is_none() || l1.is_none()
+        {
+            return;
+        }
 
-        let binding = self.analyze(Analyze {
-            name_or_number: name1,
-        });
+        let s0 = self.analyze_preformat(&l0.unwrap());
+        let s1 = self.analyze_preformat(&l1.unwrap());
 
-        let s1 = binding.split('\n').collect_vec();
+        let heatmap =
+            s0.1.map
+                .iter()
+                .zip(&s1.1.map)
+                .map(|(a, b)| format!("{a}{:10}{b}", " "))
+                .collect_vec()
+                .join("\n");
 
-        let compare_map = s0
-            .into_iter()
-            .zip(s1)
-            .map(|(a, b)| {
-                return if a.chars().count() > 64
-                {
-                    format!("{a}{:10}{b}", " ")
-                }
-                else
-                {
-                    format!("{a:31}{b}")
-                };
-            })
+        let st0 = format!(
+            "\n\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}",
+            s0.0.character_stats,
+            s0.0.bigram_stats,
+            s0.0.trigram_stats,
+            s0.0.disjoint_stats,
+            s0.0.skip1_stats,
+            s0.0.skip2_stats,
+            s0.0.skip3_stats,
+        );
+
+        let st1 = format!(
+            "\n\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}",
+            s1.0.character_stats,
+            s1.0.bigram_stats,
+            s1.0.trigram_stats,
+            s1.0.disjoint_stats,
+            s1.0.skip1_stats,
+            s1.0.skip2_stats,
+            s1.0.skip3_stats,
+        );
+
+        let stats = st0
+            .split("\n")
+            .zip(st1.split("\n"))
+            .map(|(a, b)| format!("{a:31}{b}"))
             .collect_vec()
             .join("\n");
 
-        result.push_str(compare_map.as_str());
+        result.push_str(heatmap.as_str());
+        result.push_str(stats.as_str());
 
-        return result;
+        println!("{result}");
     }
 
-    fn analyze(&mut self, o: Analyze) -> String
+    fn analyze_preformat(&self, layout: &Layout) -> (LayoutStats, HeatMap)
+    {
+        let stats = LayoutStats::new(&self.language_data, &layout);
+        let heatmap = HeatMap::new(&self.language_data.characters, &layout.matrix);
+
+        return (stats, heatmap);
+    }
+
+    fn analyze(&mut self, o: Analyze)
     {
         let name = o.name_or_number.as_str();
         let layout = self.layout_by_name(name);
 
         if layout.is_none()
         {
-            return format!("'{name}' does not exist!");
+            return;
         }
 
         let layout = layout.unwrap();
 
-        let stats = LayoutStats::new(&self.language_data, &layout);
+        let l = self.analyze_preformat(&layout);
 
-        let layout_str = Self::heatmap(&self.language_data.characters, &layout.matrix).join("\n");
+        let stats = l.0;
 
-        return format!(
+        let layout_str = l.1.map.join("\n");
+
+        println!(
             "{layout_str}\n\n\
             {}\n\
             {}\n\
+            {}\n\
+            {}\n\
+            {}\n\
+            {}\n\
             {}",
-            stats.bigram_stats, stats.trigram_stats, stats.disjoint_stats,
+            stats.character_stats,
+            stats.bigram_stats,
+            stats.trigram_stats,
+            stats.disjoint_stats,
+            stats.skip1_stats,
+            stats.skip2_stats,
+            stats.skip3_stats,
         );
     }
 
-    pub fn rank(&self, rank: Rank) -> String
+    pub fn rank(&self, rank: Rank)
     {
         use rayon::iter::*;
 
@@ -192,17 +247,11 @@ impl Repl
             .map(|(name, layout)| {
                 let stats = LayoutStats::new(&self.language_data, &layout);
 
-                let a = [
-                    stats[SFB],
-                    stats[D1SFB],
-                    stats[SFT],
-                    stats[LSB],
-                    stats[D1LSB],
-                ];
+                let a = [stats[&SFB], stats[&D1SFB].powf(2_f32.recip()), stats[&SFT]];
 
                 let metric = a.into_iter().fold(0., |c, x| c + x);
 
-                return (name.clone(), metric);
+                return (name, metric);
             })
             .collect::<Vec<_>>();
 
@@ -217,25 +266,20 @@ impl Repl
             }
         });
 
-        return v
-            .iter()
-            .map(|(n, s)| format!("{:24} {:.5}", n, s))
-            .join("\n");
+        v.iter().for_each(|(n, s)| println!("{n:24} {s:.5}"));
     }
 
-    fn sfbs(&self, o: Sfbs) -> String
+    fn sfbs(&self, o: Sfbs)
     {
-        return match self.layout_by_name(o.name.as_str())
+        match self.layout_by_name(o.name.as_str())
         {
             | None =>
             {
-                format!("Layout \"{}\" does not exist.", o.name)
+                println!("Layout \"{}\" does not exist.", o.name)
             },
             | Some(layout) =>
             {
                 let top_n = o.count.unwrap_or(10).min(48);
-
-                let mut response = format!("Top {top_n} SFBs for {}:\n", o.name);
 
                 let mut v = Vec::new();
 
@@ -243,7 +287,7 @@ impl Repl
                 {
                     for j in 0 .. 30
                     {
-                        if LayoutStats::is_sf(&mut [i as u8, j as u8])
+                        if Predicates::is_sf(&mut [i as u8, j as u8])
                         {
                             let c0 = layout.matrix[i];
                             let c1 = layout.matrix[j];
@@ -253,7 +297,7 @@ impl Repl
                                 continue;
                             }
 
-                            let bigram = format!("{}{}", c0, c1);
+                            let bigram = format!("{c0}{c1}");
                             let freq = self.language_data.bigrams.get(&bigram).unwrap_or(&0.);
 
                             v.push((bigram, freq));
@@ -263,28 +307,26 @@ impl Repl
 
                 v.sort_by(|(_, f0), (_, f1)| f1.partial_cmp(f0).unwrap());
 
-                v.iter().take(top_n).for_each(|(s, f)| {
-                    response.push_str(format!("{} {:.5}\n", s, *f * 100.).as_str())
-                });
+                println!("Top {top_n} SFBs for {}:\n", o.name);
 
-                return response;
+                v.iter()
+                    .take(top_n)
+                    .for_each(|(s, f)| println!("{} {:.5}\n", s, *f * 100.));
             },
         };
     }
 
-    fn sfts(&self, o: Sfts) -> String
+    fn sfts(&self, o: Sfts)
     {
         return match self.layout_by_name(o.name.as_str())
         {
             | None =>
             {
-                format!("Layout \"{}\" does not exist.", o.name)
+                println!("Layout \"{}\" does not exist.", o.name)
             },
             | Some(layout) =>
             {
                 let top_n = o.count.unwrap_or(10).min(48);
-
-                let mut response = format!("Top {top_n} SFTs for {}:\n", o.name);
 
                 let mut v = Vec::new();
 
@@ -294,7 +336,7 @@ impl Repl
                     {
                         for k in 0 .. 30
                         {
-                            if LayoutStats::is_sf(&mut [i as u8, j as u8, k as u8])
+                            if Predicates::is_sf(&mut [i as u8, j as u8, k as u8])
                             {
                                 let c0 = layout.matrix[i];
                                 let c1 = layout.matrix[j];
@@ -316,16 +358,16 @@ impl Repl
 
                 v.sort_by(|(_, f0), (_, f1)| f1.partial_cmp(f0).unwrap());
 
-                v.iter().take(top_n).for_each(|(s, f)| {
-                    response.push_str(format!("{} {:.5}\n", s, *f * 100.).as_str())
-                });
+                println!("Top {top_n} SFTs for {}:\n", o.name);
 
-                return response;
+                v.iter()
+                    .take(top_n)
+                    .for_each(|(s, f)| println!("{} {:.5}\n", s, *f * 100.));
             },
         };
     }
 
-    pub fn ngram(&mut self, ngram: Ngram) -> String
+    pub fn ngram(&mut self, ngram: Ngram)
     {
         let ngram = ngram.ngram;
 
@@ -336,39 +378,81 @@ impl Repl
                 let c = ngram.chars().next().unwrap();
                 let p = self.language_data.characters.get(&c).unwrap_or(&0.) * 100.;
 
-                format!("{ngram}: {p:.3}%")
+                println!("{ngram}: {p:.3}%")
             },
             | 2 =>
             {
-                let b0 = ngram.clone();
-                let p0 = self.language_data.bigrams.get(&b0).unwrap_or(&0.0) * 100.;
-                let s0 = self.language_data.skipgrams.get(&b0).unwrap_or(&0.0) * 100.;
+                let chars = ngram.chars().collect_vec();
+                let p0 = self.language_data.bigrams.get(&ngram).unwrap_or(&0.0) * 100.;
 
-                let temp = ngram.chars().collect_vec();
+                let s01 = self.language_data.skipgrams.get(&ngram).unwrap_or(&0.0) * 100.;
+                let s02 = self.language_data.skipgrams2.get(&ngram).unwrap_or(&0.0) * 100.;
+                let s03 = self.language_data.skipgrams3.get(&ngram).unwrap_or(&0.0) * 100.;
 
-                return if temp[0] == temp[1]
+                let mut d0 = 0.;
+
+                for c in self.language_data.characters.keys()
                 {
-                    format!(
-                        "[bigram]:   {:.3}%\n\
-                    [skipgram]: {:.3}%",
-                        p0, s0
+                    d0 += self
+                        .language_data
+                        .trigrams
+                        .get(&format!("{}{}{}", chars[0], c, chars[1]))
+                        .unwrap_or(&0.0)
+                        * 100.;
+                }
+
+                if chars[0] == chars[1]
+                {
+                    println!(
+                        "[bigram]: {p0:.3}%\n\
+                    [disjoint]: {d0:.3}%\n\
+                    [skip1]: {s01:.3}%\n\
+                    [skip2]: {s02:.3}%\n\
+                    [skip3]: {s03:.3}%",
                     )
                 }
                 else
                 {
                     let b1: String = ngram.chars().rev().collect();
                     let p1 = self.language_data.bigrams.get(&b1).unwrap_or(&0.0) * 100.;
-                    let s1 = self.language_data.skipgrams2.get(&b1).unwrap_or(&0.0) * 100.;
 
-                    format!(
-                        "[bigram]:   {:.5}%\n\
-                        \t{b0}: {p0:.5}%\n\
+                    let s11 = self.language_data.skipgrams.get(&b1).unwrap_or(&0.0) * 100.;
+                    let s12 = self.language_data.skipgrams2.get(&b1).unwrap_or(&0.0) * 100.;
+                    let s13 = self.language_data.skipgrams3.get(&b1).unwrap_or(&0.0) * 100.;
+
+                    let mut d1 = 0.;
+
+                    for c in self.language_data.characters.keys()
+                    {
+                        d1 += self
+                            .language_data
+                            .trigrams
+                            .get(&format!("{}{}{}", chars[1], c, chars[0]))
+                            .unwrap_or(&0.0)
+                            * 100.;
+                    }
+
+                    println!(
+                        "[bigram]: {:.5}%\n\
+                        \t{ngram}: {p0:.5}%\n\
                         \t{b1}: {p1:.5}%\n\
-                        [skipgram]: {:.5}%\n\
-                        \t{b0}: {s0:.5}%\n\
-                        \t{b1}: {s1:.5}%",
+                        [disjoint]: {:.5}%\n\
+                        \t{ngram}: {d0:.5}%\n\
+                        \t{b1}: {d1:.5}%\n\
+                        [skip1]: {:.5}%\n\
+                        \t{ngram}: {s01:.5}%\n\
+                        \t{b1}: {s11:.5}%\n\
+                        [skip2]: {:.5}%\n\
+                        \t{ngram}: {s02:.5}%\n\
+                        \t{b1}: {s12:.5}%\n\
+                        [skip3]: {:.5}%\n\
+                        \t{ngram}: {s03:.5}%\n\
+                        \t{b1}: {s13:.5}%",
                         p0 + p1,
-                        s0 + s1
+                        d0 + d1,
+                        s01 + s11,
+                        s02 + s12,
+                        s03 + s13
                     )
                 };
             },
@@ -392,7 +476,7 @@ impl Repl
             | _ =>
             {
                 // Skill issue honestly...
-                "Invalid ngram! It must be 1, 2 or 3 chars long. ".to_string()
+                println!("Invalid ngram! It must be 1, 2 or 3 chars long. ");
             },
         };
     }
@@ -402,6 +486,13 @@ impl Repl
 {
     fn layout_by_name(&self, name: &str) -> Option<Layout>
     {
+        let l = self.layouts.get(name);
+
+        if l.is_none()
+        {
+            println!("Layout \"{name}\" does not exist.")
+        }
+
         return self.layouts.get(name).cloned();
     }
 
@@ -417,7 +508,15 @@ impl Repl
 
         return language_data;
     }
+}
 
+struct HeatMap
+{
+    pub map: Vec<String>,
+}
+
+impl HeatMap
+{
     pub fn heat(c: char, p: f32) -> String
     {
         use ansi_rgb::{
@@ -435,101 +534,35 @@ impl Repl
         return format!("{formatted}");
     }
 
-    pub fn heatmap(data: &HashMap<char, f32>, chars: &Fixed<char>) -> Vec<String>
+    pub fn new(data: &HashMap<char, f32>, chars: &Fixed<char>) -> Self
     {
-        let mut map = Vec::new();
-        let mut print_str = String::new();
+        let mut maps = Vec::new();
+        let mut row = String::new();
 
         for (i, c) in chars.iter().enumerate()
         {
             if i % 10 == 0 && i != 0
             {
-                map.push(print_str.clone());
+                maps.push(row);
 
-                print_str = String::new();
+                row = String::new();
             }
 
             if (i + 5) % 10 == 0
             {
-                print_str.push(' ');
+                row.push(' ');
             }
 
-            let p = *data.get(c).unwrap_or(&0.0);
+            let p = data.get(c).unwrap_or(&0.0);
 
-            let heat = Self::heat(*c, p);
+            let heat = Self::heat(*c, *p);
 
-            print_str.push_str(heat.as_str());
-            print_str.push(' ');
+            row.push_str(heat.as_str());
+            row.push(' ');
         }
 
-        map.push(print_str.clone());
+        maps.push(row);
 
-        return map;
-    }
-
-    fn weight_stats(&self, stats: &mut LayoutStats)
-    {
-        for (k, mut v) in stats.bigram_stats.inner.iter_mut()
-        {
-            match k
-            {
-                | SFB =>
-                {},
-                | LSB =>
-                {},
-                | S1SFB =>
-                {},
-                | S2SFB =>
-                {},
-                | S3SFB =>
-                {},
-                | IRB =>
-                {},
-                | ORB =>
-                {},
-                | AB =>
-                {},
-                | Repeat =>
-                {},
-                | S =>
-                {},
-            }
-        }
-
-        for (k, v) in stats.trigram_stats.inner.iter()
-        {
-            match k
-            {
-                | SFT =>
-                {},
-                | IRT =>
-                {},
-                | ORT =>
-                {},
-                | Redirect =>
-                {},
-                | AT =>
-                {},
-            }
-        }
-
-        for (k, v) in stats.disjoint_stats.inner.iter()
-        {
-            match k
-            {
-                | D1S =>
-                {},
-                | D1IRB =>
-                {},
-                | D1ORB =>
-                {},
-                | D1SFB =>
-                {},
-                | D1LSB =>
-                {},
-                | D1Repeat =>
-                {},
-            }
-        }
+        return Self { map: maps };
     }
 }

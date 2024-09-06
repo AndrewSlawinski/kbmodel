@@ -4,12 +4,14 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+ratatui = "0.28.1"
+crossterm = "0.28.1"
 glob = "0.3.1"
 toml = "0.8.19"
 smallvec = "2.0.0-alpha.7"
 itertools = "0.13.0"
 serde = { version = "1.0.209", features = ["derive"] }
-serde_json = "1.0.127"
+serde_json = "1.0.128"
 nanorand = "0.7.0"
 rayon = "1.10.0"
 file-chunker = "0.1.1"
@@ -19,3 +21,4 @@ ansi_rgb = { git = "https://github.com/O-X-E-Y/ansi_rgb" }
 smartstring = { git = "https://github.com/O-X-E-Y/smartstring", features = ["serde"] }
 num-traits = "0.2.19"
 num-derive = "0.4.2"
+futures = "0.3.30"

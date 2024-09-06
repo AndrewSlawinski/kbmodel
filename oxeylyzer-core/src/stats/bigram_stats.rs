@@ -1,6 +1,6 @@
 use crate::language_data::LanguageData;
 use crate::stats::bigram_stats::BType::*;
-use crate::stats::layout_stats::LayoutStats;
+use crate::stats::predicates::Predicates;
 use crate::type_def::Fixed;
 use indexmap::IndexMap;
 pub use std::collections::hash_map::Entry;
@@ -17,37 +17,74 @@ pub enum BType
 {
     SFB,
     LSB,
+
     IRB,
     ORB,
+    LHIRB,
+    LHORB,
+    RHIRB,
+    RHORB,
+
+    URB,
+    DRB,
+    LHURB,
+    LHDRB,
+    RHURB,
+    RHDRB,
+
     AB,
-    Repeat,
+    RepB,
     S,
 }
 
 impl BType
 {
-    fn f(&self) -> fn(a: &mut [u8]) -> bool
+    #[inline]
+    pub fn f(&self) -> fn(a: &[u8]) -> bool
     {
         return match self
         {
-            | SFB => LayoutStats::is_sf,
-            | LSB => LayoutStats::is_lsb,
-            | IRB => LayoutStats::is_sf,
-            | ORB => LayoutStats::is_sf,
-            | AB => LayoutStats::is_sf,
-            | Repeat => LayoutStats::is_sf,
-            | S => LayoutStats::is_sf,
+            | SFB => Predicates::is_sf,
+            | LSB => Predicates::is_ls,
+            | IRB => Predicates::is_inroll,
+            | ORB => Predicates::is_outroll,
+            | AB => Predicates::is_alternate,
+            | RepB => Predicates::all_equal,
+            | S => Predicates::is_scissor,
+            | LHIRB => Predicates::is_lh_inroll,
+            | LHORB => Predicates::is_lh_outroll,
+            | RHIRB => Predicates::is_rh_inroll,
+            | RHORB => Predicates::is_rh_outroll,
+            | URB => Predicates::is_uproll,
+            | DRB => Predicates::is_downroll,
+            | LHURB => Predicates::is_lh_uproll,
+            | LHDRB => Predicates::is_lh_downroll,
+            | RHURB => Predicates::is_rh_uproll,
+            | RHDRB => Predicates::is_rh_downroll,
         };
+    }
+
+    pub const fn default() -> [BType; 17]
+    {
+        return [
+            SFB, LSB, IRB, ORB, AB, RepB, S, LHIRB, LHORB, RHIRB, RHORB, URB, DRB, LHURB, LHDRB,
+            RHURB, RHDRB,
+        ];
+    }
+
+    pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>
+    {
+        return &language_data.bigrams;
     }
 }
 
 #[derive(Default, Clone)]
-pub struct BigramStats
+pub struct BStats
 {
     pub inner: IndexMap<BType, f32>,
 }
 
-impl Index<BType> for BigramStats
+impl Index<BType> for BStats
 {
     type Output = f32;
 
@@ -57,55 +94,92 @@ impl Index<BType> for BigramStats
     }
 }
 
-impl BigramStats
+impl BStats
 {
-    pub fn new(language_data: &LanguageData, chars: &Fixed<char>, a: &[BType]) -> Self
+    #[inline]
+    pub async fn new(chars: &Fixed<char>, language_data: &LanguageData, a: Option<&[BType]>)
+    -> Self
     {
         let mut stats = IndexMap::new();
 
-        for t in a
-        {
-            let p = match t
-            {
-                | SFB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_sf),
-                | LSB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_lsb),
-                | Repeat => Self::p1(chars, &language_data.bigrams, LayoutStats::is_repeat),
-                | S1SFB => Self::p1(chars, &language_data.skipgrams, LayoutStats::is_sf),
-                | S2SFB => Self::p1(chars, &language_data.skipgrams2, LayoutStats::is_sf),
-                | S3SFB => Self::p1(chars, &language_data.skipgrams3, LayoutStats::is_sf),
-                | IRB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_inroll),
-                | ORB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_outroll),
-                | S => Self::p1(chars, &language_data.bigrams, LayoutStats::is_scissor),
-                | AB => Self::p1(chars, &language_data.bigrams, LayoutStats::is_alternate),
-            };
-
-            stats.insert(*t, p);
-        }
+        Self::p2(
+            chars,
+            BType::source(language_data),
+            &mut stats,
+            a.unwrap_or(&BType::default()),
+        );
 
         return Self { inner: stats };
     }
 
-    pub(crate) fn p1(
+    fn p2(
         chars: &Fixed<char>,
         data: &HashMap<String, f32>,
-        f: fn(&mut [u8]) -> bool,
-    ) -> f32
+        map: &mut IndexMap<BType, f32>,
+        a: &[BType],
+    )
+    {
+        for t in a
+        {
+            map.insert(*t, 0.);
+        }
+
+        for i in 0 .. 30
+        {
+            let c0 = chars[i];
+
+            if char::is_ascii_punctuation(&c0)
+            {
+                continue;
+            }
+
+            for j in 0 .. 30
+            {
+                let c1 = chars[j];
+
+                if char::is_ascii_punctuation(&c1)
+                {
+                    continue;
+                }
+
+                for (key, value) in map.iter_mut()
+                {
+                    if key.f()(&mut [i as u8, j as u8])
+                    {
+                        let p = data.get(&format!("{}{}", c0, c1)).unwrap_or(&0.0);
+
+                        *value += p;
+                    }
+                }
+            }
+        }
+
+        map.values_mut().for_each(|x| *x *= 100.);
+    }
+
+    pub fn p_par(chars: &Fixed<char>, data: &HashMap<String, f32>, f: fn(&[u8]) -> bool) -> f32
     {
         use rayon::iter::*;
 
         let a = (0 .. 30).into_par_iter().map(|i| {
+            let c0 = chars[i as usize];
+
+            if char::is_ascii_punctuation(&c0)
+            {
+                return 0.;
+            }
+
             let b = (0 .. 30).into_par_iter().map(|j| {
-                if f(&mut [i as u8, j as u8])
+                let c1 = chars[j as usize];
+
+                if char::is_ascii_punctuation(&c1)
                 {
-                    let c0 = chars[i];
-                    let c1 = chars[j];
+                    return 0.;
+                }
 
-                    if [c0, c1].iter().any(char::is_ascii_punctuation)
-                    {
-                        return 0.;
-                    }
-
-                    let p = data.get(&format!("{}{}", c0, c1)).unwrap_or(&0.);
+                if f(&[i, j])
+                {
+                    let p = data.get(&format!("{c0}{c1}")).unwrap_or(&0.);
 
                     return *p;
                 }
@@ -120,49 +194,19 @@ impl BigramStats
 
         return q * 100.;
     }
-
-    pub(crate) fn p(
-        chars: &Fixed<char>,
-        data: &HashMap<String, f32>,
-        f: fn(&mut [u8]) -> bool,
-    ) -> f32
-    {
-        let mut res = 0.;
-
-        for i in 0 .. 30
-        {
-            for j in 0 .. 30
-            {
-                if f(&mut [i as u8, j as u8])
-                {
-                    let c0 = chars[i];
-                    let c1 = chars[j];
-
-                    if [c0, c1].iter().any(char::is_ascii_punctuation)
-                    {
-                        continue;
-                    }
-
-                    let p = data.get(&format!("{}{}", c0, c1)).unwrap_or(&0.0);
-
-                    res += p;
-                }
-            }
-        }
-
-        return res * 100.;
-    }
 }
 
-impl Display for BigramStats
+impl Display for BStats
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result
     {
         let mut format = "Bigrams:\n".to_string();
 
         self.inner.iter().for_each(|(key, value)| {
-            let k = format!("{:?}", key);
-            let s = format!("  {:11} {:.3}%\n", k, *value);
+            let key = format!("{:?}", key);
+            let value = format!("{:.3}%", value);
+
+            let s = format!("{key:7}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });

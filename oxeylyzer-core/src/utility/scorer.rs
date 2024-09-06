@@ -1,20 +1,27 @@
-use crate::stats::bigram_stats::BigramStats;
+use crate::stats::layout_stats::LayoutStats;
+use crate::stats::stat::Stat;
 
 pub struct Scorer {}
 
 impl Scorer
 {
-    pub fn total_score(&self, bigram_stats: &BigramStats) -> f32
+    fn format_stats<T>(a: &[LayoutStats]) -> String
     {
-        // let scissors = self.scissor_score(layout);
-        // let lsbs = self.lateral_stretch_bigram_score(layout);
-        // let pinky_ring = self.pinky_ring_score(layout);
+        let mut s = String::new();
 
-        todo!()
+        for t in a
+        {}
+
+        return s;
     }
 
-    pub fn same_finger_bigrams(&self) -> Vec<([u8; 2], f32)>
+    fn format_stat<T>(a: &[Stat<T>]) -> String
     {
-        return Vec::new();
+        let mut s = String::new();
+
+        for t in a
+        {}
+
+        return s;
     }
 }

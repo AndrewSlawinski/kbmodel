@@ -1,8 +1,7 @@
 use crate::language_data::LanguageData;
-use crate::stats::layout_stats::LayoutStats;
+use crate::stats::predicates::Predicates;
 use crate::stats::trigram_stats::TType::*;
 use crate::type_def::Fixed;
-use indexmap::map::Entry;
 use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::fmt;
@@ -18,22 +17,35 @@ pub enum TType
     SFT,
     IRT,
     ORT,
-    Redirect,
+    Red,
     AT,
+    RepT,
 }
 
 impl TType
 {
-    fn f(&self) -> fn(a: &mut [u8]) -> bool
+    #[inline]
+    pub const fn f(&self) -> fn(a: &[u8]) -> bool
     {
         return match self
         {
-            | SFT => LayoutStats::is_sf,
-            | IRT => LayoutStats::is_inroll,
-            | ORT => LayoutStats::is_outroll,
-            | Redirect => LayoutStats::is_redirect,
-            | AT => LayoutStats::is_inroll,
+            | SFT => Predicates::is_sf,
+            | IRT => Predicates::is_inroll,
+            | ORT => Predicates::is_outroll,
+            | Red => Predicates::is_redirect,
+            | AT => Predicates::is_alternate,
+            | RepT => Predicates::all_equal,
         };
+    }
+
+    pub const fn default() -> [TType; 6]
+    {
+        return [SFT, IRT, ORT, Red, AT, RepT];
+    }
+
+    pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>
+    {
+        return &language_data.trigrams;
     }
 }
 
@@ -44,73 +56,79 @@ pub struct TStats
 }
 impl TStats
 {
-    pub fn new(language_data: &LanguageData, chars: &Fixed<char>, a: &[TType]) -> Self
+    #[inline]
+    pub async fn new(chars: &Fixed<char>, language_data: &LanguageData, a: Option<&[TType]>)
+    -> Self
     {
         let mut stats = IndexMap::new();
 
-        for t in a
-        {
-            stats.insert(*t, 0.);
-        }
-
-        Self::p2(chars, &language_data.trigrams, &mut stats, a);
+        Self::p2(
+            chars,
+            TType::source(language_data),
+            &mut stats,
+            a.unwrap_or(&TType::default()),
+        );
 
         return Self { inner: stats };
     }
 
-    pub(crate) fn p2(
+    fn p2(
         chars: &Fixed<char>,
         data: &HashMap<String, f32>,
-        index_map: &mut IndexMap<TType, f32>,
+        map: &mut IndexMap<TType, f32>,
         a: &[TType],
     )
     {
+        for t in a
+        {
+            map.insert(*t, 0.);
+        }
+
         for i in 0 .. 30
         {
+            let c0 = chars[i as usize];
+
+            if char::is_ascii_punctuation(&c0)
+            {
+                continue;
+            }
+
             for j in 0 .. 30
             {
+                let c1 = chars[j as usize];
+
+                if char::is_ascii_punctuation(&c1)
+                {
+                    continue;
+                }
+
                 for k in 0 .. 30
                 {
-                    for t in a
+                    let c2 = chars[k as usize];
+
+                    if char::is_ascii_punctuation(&c2)
                     {
-                        if t.f()(&mut [i as u8, j as u8, k as u8])
+                        continue;
+                    }
+
+                    for (key, value) in map.iter_mut()
+                    {
+                        if key.f()(&mut [i, j, k])
                         {
-                            let c0 = chars[i];
-                            let c1 = chars[j];
-                            let c2 = chars[k];
+                            let p = data.get(&format!("{c0}{c1}{c2}")).unwrap_or(&0.0);
 
-                            if [c0, c1, c2].iter().any(char::is_ascii_punctuation)
-                            {
-                                continue;
-                            }
-
-                            let p = data.get(&format!("{}{}{}", c0, c1, c2)).unwrap_or(&0.0);
-
-                            match index_map.entry(*t)
-                            {
-                                | Entry::Occupied(mut e) =>
-                                {
-                                    *e.get_mut() += p;
-                                },
-                                | Entry::Vacant(_) =>
-                                {
-                                    panic!();
-                                },
-                            }
+                            *value += *p;
                         }
                     }
                 }
             }
         }
 
-        index_map.values_mut().for_each(|mut x| *x *= 100.);
+        map.values_mut().for_each(|x| *x *= 100.);
     }
 
-    pub(crate) fn p1(
-        chars: &Fixed<char>,
-        data: &HashMap<String, f32>,
-        f: fn(&mut [u8]) -> bool,
-    ) -> f32
+    #[allow(unused)]
+    fn p_par(chars: &Fixed<char>, data: &HashMap<String, f32>, f: fn(&mut [u8]) -> bool) -> f32
     {
         use rayon::iter::*;
 
@@ -151,50 +169,7 @@ impl TStats
 
         return q * 100.;
     }
-
-    pub(crate) fn p(
-        chars: &Fixed<char>,
-        data: &HashMap<String, f32>,
-        f: fn(&mut [u8]) -> bool,
-    ) -> f32
-    {
-        let mut res = 0.;
-
-        for i in 0 .. 30
-        {
-            for j in 0 .. 30
-            {
-                for k in 0 .. 30
-                {
-                    if f(&mut [i as u8, j as u8, k as u8])
-                    {
-                        let c0 = chars[i];
-                        let c1 = chars[j];
-                        let c2 = chars[k];
-
-                        if c0 == c1 && c1 == c2
-                        {
-                            continue;
-                        }
-
-                        if [c0, c1, c2].iter().any(char::is_ascii_punctuation)
-                        {
-                            continue;
-                        }
-
-                        let p = data.get(&format!("{}{}{}", c0, c1, c2)).unwrap_or(&0.0);
-
-                        res += p;
-                    }
-                }
-            }
-        }
-
-        return res * 100.;
-    }
 }
-
-impl TStats {}
 
 impl Index<TType> for TStats
 {
@@ -213,8 +188,10 @@ impl Display for TStats
         let mut format = "Trigrams:\n".to_string();
 
         self.inner.iter().for_each(|(key, value)| {
-            let k = format!("{:?}", key);
-            let s = format!("  {:11} {:.3}%\n", k, *value);
+            let key = format!("{key:?}");
+            let value = format!("{value:.3}%");
+
+            let s = format!("{key:7}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });

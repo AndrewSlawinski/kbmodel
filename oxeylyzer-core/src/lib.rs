@@ -1,3 +1,4 @@
+extern crate alloc;
 extern crate core;
 
 pub use rayon;

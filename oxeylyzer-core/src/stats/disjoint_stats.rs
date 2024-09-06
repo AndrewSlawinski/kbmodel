@@ -1,8 +1,7 @@
 use crate::language_data::LanguageData;
 use crate::stats::disjoint_stats::DType::*;
-use crate::stats::layout_stats::LayoutStats;
+use crate::stats::predicates::Predicates;
 use crate::type_def::Fixed;
-use indexmap::map::Entry;
 use indexmap::IndexMap;
 use std::collections::HashMap;
 use std::fmt;
@@ -19,23 +18,34 @@ pub enum DType
     D1LSB,
     D1IRB,
     D1ORB,
-    D1Repeat,
+    D1Rep,
     D1S,
 }
 
 impl DType
 {
-    fn f(&self) -> fn(a: &mut [u8]) -> bool
+    #[inline]
+    pub fn f(&self) -> fn(a: &[u8]) -> bool
     {
         return match self
         {
-            | D1SFB => LayoutStats::is_sf,
-            | D1LSB => LayoutStats::is_lsb,
-            | D1IRB => LayoutStats::is_inroll,
-            | D1ORB => LayoutStats::is_outroll,
-            | D1Repeat => LayoutStats::is_repeat,
-            | D1S => LayoutStats::is_scissor,
+            | D1SFB => Predicates::is_sf,
+            | D1LSB => Predicates::is_ls,
+            | D1IRB => Predicates::is_inroll,
+            | D1ORB => Predicates::is_outroll,
+            | D1Rep => Predicates::all_equal,
+            | D1S => Predicates::is_scissor,
         };
+    }
+
+    pub const fn default() -> [DType; 6]
+    {
+        return [D1SFB, D1LSB, D1IRB, D1ORB, D1Rep, D1S];
+    }
+
+    pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>
+    {
+        return &language_data.trigrams;
     }
 }
 
@@ -47,191 +57,89 @@ pub struct D1Stats
 
 impl D1Stats
 {
-    pub fn new(language_data: &LanguageData, chars: &Fixed<char>, a: &[DType]) -> Self
+    #[inline]
+    pub async fn new(chars: &Fixed<char>, language_data: &LanguageData, a: Option<&[DType]>)
+    -> Self
     {
         let mut stats = IndexMap::new();
 
-        for t in a
-        {
-            stats.insert(*t, 0.);
-        }
-
-        Self::p2(chars, &language_data.trigrams, &mut stats, a);
+        Self::p2(
+            chars,
+            DType::source(language_data),
+            &mut stats,
+            a.unwrap_or(&DType::default()),
+        );
 
         return Self { inner: stats };
     }
 
-    pub(crate) fn p2(
+    fn p2(
         chars: &Fixed<char>,
         data: &HashMap<String, f32>,
-        index_map: &mut IndexMap<DType, f32>,
+        map: &mut IndexMap<DType, f32>,
         a: &[DType],
     )
     {
-        for i in 0 .. 30
+        for t in a
         {
-            let i_left = LayoutStats::is_left_hand(&i);
-
-            for j in 0 .. 30
-            {
-                let j_left = LayoutStats::is_left_hand(&j);
-
-                if i_left == j_left
-                {
-                    continue;
-                }
-
-                for k in 0 .. 30
-                {
-                    for t in a
-                    {
-                        if t.f()(&mut [i as u8, k as u8])
-                        {
-                            let k_left = LayoutStats::is_left_hand(&k);
-
-                            if j_left == k_left
-                            {
-                                continue;
-                            }
-
-                            let c0 = chars[i];
-                            let c1 = chars[j];
-                            let c2 = chars[k];
-
-                            if [c0, c1, c2].iter().any(char::is_ascii_punctuation)
-                            {
-                                continue;
-                            }
-
-                            let p = data.get(&format!("{}{}{}", c0, c1, c2)).unwrap_or(&0.0);
-
-                            match index_map.entry(*t)
-                            {
-                                | Entry::Occupied(mut e) =>
-                                {
-                                    *e.get_mut() += p;
-                                },
-                                | Entry::Vacant(_) =>
-                                {
-                                    panic!();
-                                },
-                            }
-                        }
-                    }
-                }
-            }
+            map.insert(*t, 0.);
         }
 
-        index_map.values_mut().for_each(|mut x| *x *= 100.);
-    }
-
-    pub(crate) fn p1(
-        chars: &Fixed<char>,
-        data: &HashMap<String, f32>,
-        f: fn(&mut [u8]) -> bool,
-    ) -> f32
-    {
-        use rayon::iter::*;
-
-        let a = (0 .. 30).into_par_iter().map(|i| {
-            let i_left = LayoutStats::is_left_hand(&i);
-
-            let b = (0 .. 30).into_par_iter().map(|j| {
-                let j_left = LayoutStats::is_left_hand(&j);
-
-                if i_left == j_left
-                {
-                    return 0.;
-                }
-
-                let c = (0 .. 30).into_par_iter().map(|k| {
-                    let k_left = LayoutStats::is_left_hand(&k);
-
-                    if j_left == k_left
-                    {
-                        return 0.;
-                    }
-
-                    if f(&mut [i as u8, k as u8])
-                    {
-                        let c0 = chars[i];
-                        let c1 = chars[j];
-                        let c2 = chars[k];
-
-                        if [c0, c1, c2].iter().any(char::is_ascii_punctuation)
-                        {
-                            return 0.;
-                        }
-
-                        let p = data.get(&format!("{}{}{}", c0, c1, c2)).unwrap_or(&0.);
-
-                        return *p;
-                    }
-
-                    return 0.;
-                });
-
-                return c.collect::<Vec<f32>>().iter().sum();
-            });
-
-            return b.collect::<Vec<f32>>().iter().sum();
-        });
-
-        let q: f32 = a.collect::<Vec<f32>>().iter().sum();
-
-        return q * 100.;
-    }
-
-    pub(crate) fn p(
-        chars: &Fixed<char>,
-        data: &HashMap<String, f32>,
-        f: fn(&mut [u8]) -> bool,
-    ) -> f32
-    {
-        let mut res = 0.;
-
         for i in 0 .. 30
         {
-            let i_left = LayoutStats::is_left_hand(&i);
+            let c0 = chars[i as usize];
+
+            if char::is_ascii_punctuation(&c0)
+            {
+                continue;
+            }
+
+            let i_left = Predicates::is_left_hand(&i);
 
             for j in 0 .. 30
             {
-                let j_left = LayoutStats::is_left_hand(&j);
+                let j_left = Predicates::is_left_hand(&j);
 
                 if i_left == j_left
                 {
                     continue;
                 }
 
+                let c1 = chars[j as usize];
+
+                if char::is_ascii_punctuation(&c1)
+                {
+                    continue;
+                }
+
                 for k in 0 .. 30
                 {
-                    let k_left = LayoutStats::is_left_hand(&k);
-
-                    if j_left == k_left
+                    if j_left == Predicates::is_left_hand(&k)
                     {
                         continue;
                     }
 
-                    if f(&mut [i as u8, k as u8])
+                    let c2 = chars[k as usize];
+
+                    if char::is_ascii_punctuation(&c2)
                     {
-                        let c0 = chars[i];
-                        let c1 = chars[j];
-                        let c2 = chars[k];
+                        continue;
+                    }
 
-                        if [c0, c1, c2].iter().any(char::is_ascii_punctuation)
+                    for (key, value) in map.iter_mut()
+                    {
+                        if key.f()(&mut [i, k])
                         {
-                            continue;
+                            let p = data.get(&format!("{c0}{c1}{c2}")).unwrap_or(&0.0);
+
+                            *value += *p;
                         }
-
-                        let p = data.get(&format!("{}{}{}", c0, c1, c2)).unwrap_or(&0.0);
-
-                        res += p;
                     }
                 }
             }
         }
 
-        return res * 100.;
+        map.values_mut().for_each(|x| *x *= 100.);
     }
 }
 
@@ -252,8 +160,10 @@ impl Display for D1Stats
         let mut format = "Disjoints:\n".to_string();
 
         self.inner.iter().for_each(|(key, value)| {
-            let k = format!("{:?}", key);
-            let s = format!("  {:11} {:.3}%\n", k, *value);
+            let key = format!("{:?}", key);
+            let value = format!("{:.3}%", value);
+
+            let s = format!("{key:7}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });
