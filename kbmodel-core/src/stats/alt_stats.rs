@@ -1,4 +1,4 @@
-use crate::new_stats::alt_stats::DataSet::{
+use crate::stats::alt_stats::DataSet::{
     Bigram,
     Character,
     Disjoint,
@@ -6,8 +6,8 @@ use crate::new_stats::alt_stats::DataSet::{
     Skip2,
     Skip3,
 };
-use crate::new_stats::stat_matrices::StatMatrices;
-use crate::new_stats::stat_type::StatType;
+use crate::stats::stat_matrices::StatMatrices;
+use crate::stats::stat_type::StatType;
 use core::fmt::{
     Display,
     Formatter,

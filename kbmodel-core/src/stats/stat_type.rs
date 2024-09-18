@@ -1,5 +1,29 @@
-use crate::new_stats::stat_type::StatType::*;
 use crate::stats::predicates::Predicates;
+use crate::stats::stat_type::StatType::{
+    Alternate,
+    LDownroll,
+    LIndex,
+    LInroll,
+    LMiddle,
+    LOutroll,
+    LPinky,
+    LRing,
+    LScissor,
+    LUproll,
+    LateralStretch,
+    RDownroll,
+    RIndex,
+    RInroll,
+    RMiddle,
+    ROutroll,
+    RPinky,
+    RRing,
+    RScissor,
+    RUproll,
+    Repeat,
+    RowJump,
+    SameFinger,
+};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum StatType

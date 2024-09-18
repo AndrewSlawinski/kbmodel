@@ -6,18 +6,20 @@ use crate::flags::{
     Sfbs,
     Sfts,
 };
+use futures::executor::block_on;
 use itertools::Itertools;
 use kbmodel_core::config::config::Config;
 use kbmodel_core::data_dir::DataFetch;
 use kbmodel_core::language_data::LanguageData;
 use kbmodel_core::layout::layout::Layout;
-use kbmodel_core::new_stats::alt_stats::AltStats;
-use kbmodel_core::new_stats::stat_matrices::StatMatrices;
-use kbmodel_core::stats::bigram_stats::BType::*;
-use kbmodel_core::stats::disjoint_stats::DType::*;
-use kbmodel_core::stats::layout_stats::LayoutStats;
+use kbmodel_core::stats::alt_stats::AltStats;
+use kbmodel_core::stats::alt_stats::DataSet::{
+    Bigram,
+    Disjoint,
+};
 use kbmodel_core::stats::predicates::Predicates;
-use kbmodel_core::stats::trigram_stats::TType::*;
+use kbmodel_core::stats::stat_matrices::StatMatrices;
+use kbmodel_core::stats::stat_type::StatType::SameFinger;
 use kbmodel_core::type_def::Fixed;
 use std::collections::HashMap;
 use std::io;
@@ -206,13 +208,13 @@ impl Repl
             .iter()
             .par_bridge()
             .map(|(name, layout)| {
-                let stats = LayoutStats::new(&self.language_data, &layout);
+                let mut matrices = StatMatrices::new();
+                block_on(matrices.compute(&layout.matrix, &self.language_data));
 
-                let a = [
-                    stats[&SameFingerB],
-                    stats[&D1SameFingerB],
-                    stats[&SameFingerT],
-                ];
+                let mut stats = AltStats::new();
+                block_on(stats.compute(&matrices));
+
+                let a = [stats[&Bigram][&SameFinger], stats[&Disjoint][&SameFinger]];
 
                 let metric = a.into_iter().fold(0., |c, x| c + x);
 
