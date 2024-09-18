@@ -13,3 +13,4 @@ static/language_data/reddit.json
 /.idea/modules.xml
 /.idea/rust.xml
 /.idea/vcs.xml
+!/static/layouts/english/really_cd_swap.kb

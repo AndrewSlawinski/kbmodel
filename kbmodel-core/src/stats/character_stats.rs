@@ -13,40 +13,42 @@ use std::ops::Index;
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum CType
 {
-    LP,
-    LR,
-    LM,
-    LI,
-    RP,
-    RR,
-    RM,
-    RI,
+    LPinky,
+    LRing,
+    LMiddle,
+    LIndex,
+    RPinky,
+    RRing,
+    RMiddle,
+    RIndex,
 }
 
 impl CType
 {
     #[inline]
-    pub const fn f(&self) -> fn(a: &u8) -> bool
+    pub const fn f(&self) -> fn(a: &[u8]) -> bool
     {
         return match self
         {
-            | LP => |a| a % 10 == 0,
-            | LR => |a| a % 10 == 1,
-            | LM => |a| a % 10 == 2,
-            | LI => |a| a % 10 == 3 || a % 10 == 4,
-            | RP => |a| a % 10 == 9,
-            | RR => |a| a % 10 == 8,
-            | RM => |a| a % 10 == 7,
-            | RI => |a| a % 10 == 6 || a % 10 == 5,
+            | LPinky => |a| a[0] % 10 == 0,
+            | LRing => |a| a[0] % 10 == 1,
+            | LMiddle => |a| a[0] % 10 == 2,
+            | LIndex => |a| a[0] % 10 == 3 || a[0] % 10 == 4,
+            | RPinky => |a| a[0] % 10 == 9,
+            | RRing => |a| a[0] % 10 == 8,
+            | RMiddle => |a| a[0] % 10 == 7,
+            | RIndex => |a| a[0] % 10 == 6 || a[0] % 10 == 5,
         };
     }
 
     pub const fn default() -> [CType; 8]
     {
-        return [LP, LR, LM, LI, RI, RM, RR, RP];
+        return [
+            LPinky, LRing, LMiddle, LIndex, RIndex, RMiddle, RRing, RPinky,
+        ];
     }
 
-    pub const fn source(language_data: &LanguageData) -> &HashMap<char, f32>
+    pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>
     {
         return &language_data.characters;
     }
@@ -88,7 +90,7 @@ impl CStats
 
     pub(crate) fn p2(
         chars: &Fixed<char>,
-        data: &HashMap<char, f32>,
+        data: &HashMap<String, f32>,
         map: &mut IndexMap<CType, f32>,
         a: &[CType],
     )
@@ -109,9 +111,9 @@ impl CStats
                     continue;
                 }
 
-                if key.f()(&i)
+                if key.f()(&[i])
                 {
-                    let p = data.get(&c0).unwrap_or(&0.0);
+                    let p = data.get(&format!("{c0}")).unwrap_or(&0.0);
 
                     *value += *p;
                 }

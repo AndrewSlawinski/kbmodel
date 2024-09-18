@@ -96,38 +96,95 @@ impl Predicates
     }
 
     #[inline]
-    pub const fn is_scissor(a: &[u8]) -> bool
+    pub const fn is_lh_scissor(a: &[u8]) -> bool
     {
         let mut i = 1;
 
         while i < a.len()
         {
-            if a[i - 1] % 10 == a[i] % 10
+            let x = a[i - 1] % 10;
+            let y = a[i] % 10;
+
+            if x > 4 || y > 4 || x + y >= 7 || x == y
             {
                 return false;
             }
 
-            let diff = a[i - 1].abs_diff(a[i]);
+            let x_row = a[i - 1].div_euclid(10);
+            let y_row = a[i].div_euclid(10);
 
-            if !(diff > 15 && diff < 25)
+            if x_row.abs_diff(y_row) < 2
             {
                 return false;
             }
 
-            let sum = a[i - 1] + a[i];
+            i += 1;
+        }
 
-            match a[i - 1]
+        return true;
+    }
+
+    #[inline]
+    pub const fn is_rh_scissor(a: &[u8]) -> bool
+    {
+        let mut i = 1;
+
+        while i < a.len()
+        {
+            let x = a[i - 1] % 10;
+            let y = a[i] % 10;
+
+            if x < 5 || y < 5 || x + y <= 11 || x == y
+            {
+                return false;
+            }
+
+            let x_row = a[i - 1].div_euclid(10);
+            let y_row = a[i].div_euclid(10);
+
+            if x_row.abs_diff(y_row) < 2
+            {
+                return false;
+            }
+
+            i += 1;
+        }
+
+        return true;
+    }
+
+    #[inline]
+    pub const fn is_row_jump(a: &[u8]) -> bool
+    {
+        let mut i = 1;
+
+        while i < a.len()
+        {
+            let x_row = a[i - 1].div_euclid(10);
+            let y_row = a[i].div_euclid(10);
+
+            if x_row.abs_diff(y_row) < 2
+            {
+                return false;
+            }
+
+            let x = a[i - 1] % 10;
+            let y = a[i] % 10;
+
+            let sum = x + y;
+
+            match x
             {
                 | ..= 4 =>
                 {
-                    if !(a[i] <= 4 && sum != 7)
+                    if y > 4 || sum == 7
                     {
                         return false;
                     }
                 },
                 | 5 .. =>
                 {
-                    if !(a[i] >= 5 && sum != 11)
+                    if y < 5 || sum == 11
                     {
                         return false;
                     }
@@ -220,16 +277,15 @@ impl Predicates
     #[inline(always)]
     pub const fn is_lh_inroll(a: &[u8]) -> bool
     {
-        let mut i = 1;
+        if !Self::is_left_hand(&a[0])
+        {
+            return false;
+        }
 
+        let mut i = 1;
         while i < a.len()
         {
-            if !Self::is_left_hand(&a[i])
-            {
-                return false;
-            }
-
-            if a[i - 1] % 10 >= a[i] % 10
+            if !Self::is_left_hand(&a[i]) || a[i - 1] % 10 >= a[i] % 10
             {
                 return false;
             }
@@ -243,16 +299,15 @@ impl Predicates
     #[inline(always)]
     pub const fn is_rh_inroll(a: &[u8]) -> bool
     {
-        let mut i = 1;
+        if Self::is_left_hand(&a[0])
+        {
+            return false;
+        }
 
+        let mut i = 1;
         while i < a.len()
         {
-            if Self::is_left_hand(&a[i])
-            {
-                return false;
-            }
-
-            if a[i - 1] % 10 >= a[i] % 10
+            if Self::is_left_hand(&a[i]) || a[i - 1] % 10 >= a[i] % 10
             {
                 return false;
             }
@@ -266,16 +321,15 @@ impl Predicates
     #[inline(always)]
     pub const fn is_lh_outroll(a: &[u8]) -> bool
     {
-        let mut i = 1;
+        if !Self::is_left_hand(&a[0])
+        {
+            return false;
+        }
 
+        let mut i = 1;
         while i < a.len()
         {
-            if !Self::is_left_hand(&a[i])
-            {
-                return false;
-            }
-
-            if a[i - 1] % 10 <= a[i] % 10
+            if !Self::is_left_hand(&a[i]) || a[i - 1] % 10 <= a[i] % 10
             {
                 return false;
             }
@@ -289,16 +343,15 @@ impl Predicates
     #[inline(always)]
     pub const fn is_rh_outroll(a: &[u8]) -> bool
     {
-        let mut i = 1;
+        if Self::is_left_hand(&a[0])
+        {
+            return false;
+        }
 
+        let mut i = 1;
         while i < a.len()
         {
-            if Self::is_left_hand(&a[i])
-            {
-                return false;
-            }
-
-            if a[i - 1] % 10 <= a[i] % 10
+            if Self::is_left_hand(&a[i]) || a[i - 1] % 10 <= a[i] % 10
             {
                 return false;
             }
@@ -348,16 +401,15 @@ impl Predicates
     #[inline(always)]
     pub const fn is_lh_uproll(a: &[u8]) -> bool
     {
-        let mut i = 1;
+        if !Self::is_left_hand(&a[0])
+        {
+            return false;
+        }
 
+        let mut i = 1;
         while i < a.len()
         {
-            if !Self::is_left_hand(&a[i])
-            {
-                return false;
-            }
-
-            if a[i - 1] / 10 >= a[i] / 10
+            if !Self::is_left_hand(&a[i]) || a[i - 1] / 10 >= a[i] / 10
             {
                 return false;
             }
@@ -371,16 +423,15 @@ impl Predicates
     #[inline(always)]
     pub const fn is_rh_uproll(a: &[u8]) -> bool
     {
-        let mut i = 1;
+        if Self::is_left_hand(&a[0])
+        {
+            return false;
+        }
 
+        let mut i = 1;
         while i < a.len()
         {
-            if Self::is_left_hand(&a[i])
-            {
-                return false;
-            }
-
-            if a[i - 1] / 10 >= a[i] / 10
+            if Self::is_left_hand(&a[i]) || a[i - 1] / 10 >= a[i] / 10
             {
                 return false;
             }
@@ -394,16 +445,15 @@ impl Predicates
     #[inline(always)]
     pub const fn is_lh_downroll(a: &[u8]) -> bool
     {
-        let mut i = 1;
+        if !Self::is_left_hand(&a[0])
+        {
+            return false;
+        }
 
+        let mut i = 1;
         while i < a.len()
         {
-            if !Self::is_left_hand(&a[i])
-            {
-                return false;
-            }
-
-            if a[i - 1] / 10 <= a[i] / 10
+            if !Self::is_left_hand(&a[i]) || a[i - 1] / 10 <= a[i] / 10
             {
                 return false;
             }
@@ -416,16 +466,15 @@ impl Predicates
 
     pub const fn is_rh_downroll(a: &[u8]) -> bool
     {
-        let mut i = 1;
+        if Self::is_left_hand(&a[0])
+        {
+            return false;
+        }
 
+        let mut i = 1;
         while i < a.len()
         {
-            if Self::is_left_hand(&a[i])
-            {
-                return false;
-            }
-
-            if a[i - 1] / 10 <= a[i] / 10
+            if Self::is_left_hand(&a[i]) || a[i - 1] / 10 <= a[i] / 10
             {
                 return false;
             }
@@ -450,12 +499,34 @@ impl Predicates
                     return false;
                 };
             }
-            else
+            else if a[i] % 10 > 4
             {
-                if a[i] % 10 > 4
+                return false;
+            }
+
+            i += 1;
+        }
+
+        return true;
+    }
+
+    #[inline]
+    pub const fn is_alternate_row_jump(a: &[u8]) -> bool
+    {
+        let mut i = 1;
+
+        while i < a.len()
+        {
+            if a[i - 1] % 10 <= 4
+            {
+                if a[i] % 10 < 5
                 {
                     return false;
-                }
+                };
+            }
+            else if a[i] % 10 > 4
+            {
+                return false;
             }
 
             i += 1;

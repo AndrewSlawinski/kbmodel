@@ -7,16 +7,18 @@ use crate::flags::{
     Sfts,
 };
 use itertools::Itertools;
-use oxeylyzer_core::config::config::Config;
-use oxeylyzer_core::data_dir::DataFetch;
-use oxeylyzer_core::language_data::LanguageData;
-use oxeylyzer_core::layout::layout::Layout;
-use oxeylyzer_core::stats::bigram_stats::BType::*;
-use oxeylyzer_core::stats::disjoint_stats::DType::*;
-use oxeylyzer_core::stats::layout_stats::LayoutStats;
-use oxeylyzer_core::stats::predicates::Predicates;
-use oxeylyzer_core::stats::trigram_stats::TType::*;
-use oxeylyzer_core::type_def::Fixed;
+use kbmodel_core::config::config::Config;
+use kbmodel_core::data_dir::DataFetch;
+use kbmodel_core::language_data::LanguageData;
+use kbmodel_core::layout::layout::Layout;
+use kbmodel_core::new_stats::alt_stats::AltStats;
+use kbmodel_core::new_stats::stat_matrices::StatMatrices;
+use kbmodel_core::stats::bigram_stats::BType::*;
+use kbmodel_core::stats::disjoint_stats::DType::*;
+use kbmodel_core::stats::layout_stats::LayoutStats;
+use kbmodel_core::stats::predicates::Predicates;
+use kbmodel_core::stats::trigram_stats::TType::*;
+use kbmodel_core::type_def::Fixed;
 use std::collections::HashMap;
 use std::io;
 
@@ -121,7 +123,7 @@ impl Repl
         let name0 = o.name1;
         let name1 = o.name2;
 
-        let mut result = format!("\n{name0:31}{name1}\n");
+        let mut result = format!("\n{name0:44}{name1}\n");
 
         let l0 = self.layout_by_name(name0.as_str());
         let l1 = self.layout_by_name(name1.as_str());
@@ -138,50 +140,17 @@ impl Repl
             s0.1.map
                 .iter()
                 .zip(&s1.1.map)
-                .map(|(a, b)| format!("{a}{:10}{b}", " "))
+                .map(|(a, b)| format!("{a}{:23}{b}", " "))
                 .collect_vec()
                 .join("\n");
 
-        let st0 = format!(
-            "\n\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}",
-            s0.0.character_stats,
-            s0.0.bigram_stats,
-            s0.0.trigram_stats,
-            s0.0.disjoint_stats,
-            s0.0.skip1_stats,
-            s0.0.skip2_stats,
-            s0.0.skip3_stats,
-        );
-
-        let st1 = format!(
-            "\n\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}",
-            s1.0.character_stats,
-            s1.0.bigram_stats,
-            s1.0.trigram_stats,
-            s1.0.disjoint_stats,
-            s1.0.skip1_stats,
-            s1.0.skip2_stats,
-            s1.0.skip3_stats,
-        );
+        let st0 = format!("\n\n{}", s0.0);
+        let st1 = format!("\n\n{}", s1.0);
 
         let stats = st0
             .split("\n")
             .zip(st1.split("\n"))
-            .map(|(a, b)| format!("{a:31}{b}"))
+            .map(|(a, b)| format!("{a:44}{b}"))
             .collect_vec()
             .join("\n");
 
@@ -191,12 +160,20 @@ impl Repl
         println!("{result}");
     }
 
-    fn analyze_preformat(&self, layout: &Layout) -> (LayoutStats, HeatMap)
+    fn analyze_preformat(&self, layout: &Layout) -> (AltStats, HeatMap)
     {
-        let stats = LayoutStats::new(&self.language_data, &layout);
+        use futures::executor::block_on;
+
+        let mut t = StatMatrices::new();
+        block_on(t.compute(&layout.matrix, &self.language_data));
+
+        let mut alt = AltStats::new();
+        block_on(alt.compute(&t));
+
+        // let stats = LayoutStats::new(&self.language_data, &layout);
         let heatmap = HeatMap::new(&self.language_data.characters, &layout.matrix);
 
-        return (stats, heatmap);
+        return (alt, heatmap);
     }
 
     fn analyze(&mut self, o: Analyze)
@@ -217,23 +194,7 @@ impl Repl
 
         let layout_str = l.1.map.join("\n");
 
-        println!(
-            "{layout_str}\n\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}\n\
-            {}",
-            stats.character_stats,
-            stats.bigram_stats,
-            stats.trigram_stats,
-            stats.disjoint_stats,
-            stats.skip1_stats,
-            stats.skip2_stats,
-            stats.skip3_stats,
-        );
+        println!("{layout_str}\n\n{stats}");
     }
 
     pub fn rank(&self, rank: Rank)
@@ -247,7 +208,11 @@ impl Repl
             .map(|(name, layout)| {
                 let stats = LayoutStats::new(&self.language_data, &layout);
 
-                let a = [stats[&SFB], stats[&D1SFB].powf(2_f32.recip()), stats[&SFT]];
+                let a = [
+                    stats[&SameFingerB],
+                    stats[&D1SameFingerB],
+                    stats[&SameFingerT],
+                ];
 
                 let metric = a.into_iter().fold(0., |c, x| c + x);
 
@@ -376,7 +341,12 @@ impl Repl
             | 1 =>
             {
                 let c = ngram.chars().next().unwrap();
-                let p = self.language_data.characters.get(&c).unwrap_or(&0.) * 100.;
+                let p = self
+                    .language_data
+                    .characters
+                    .get(&format!("{c}"))
+                    .unwrap_or(&0.)
+                    * 100.;
 
                 println!("{ngram}: {p:.3}%")
             },
@@ -534,7 +504,7 @@ impl HeatMap
         return format!("{formatted}");
     }
 
-    pub fn new(data: &HashMap<char, f32>, chars: &Fixed<char>) -> Self
+    pub fn new(data: &HashMap<String, f32>, chars: &Fixed<char>) -> Self
     {
         let mut maps = Vec::new();
         let mut row = String::new();
@@ -553,7 +523,7 @@ impl HeatMap
                 row.push(' ');
             }
 
-            let p = data.get(c).unwrap_or(&0.0);
+            let p = data.get(&format!("{c}")).unwrap_or(&0.0);
 
             let heat = Self::heat(*c, *p);
 

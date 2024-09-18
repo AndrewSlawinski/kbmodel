@@ -16,34 +16,37 @@ use std::ops::Index;
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum S1Type
 {
-    S1SFB,
-    S1LSB,
-    S1IRB,
-    S1ORB,
-    S1Rep,
-    S1S,
+    S1SameFingerB,
+    S1LateralStretchB,
+    S1InrollB,
+    S1OutrollB,
+    S1RepeatB,
+    S1LScissorB,
+    S1RScissorB,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum S2Type
 {
-    S2SFB,
-    S2LSB,
-    S2IRB,
-    S2ORB,
-    S2Rep,
-    S2S,
+    S2SameFingerB,
+    S2LateralStretchB,
+    S2InrollB,
+    S2OutrollB,
+    S2RepeatB,
+    S2LScissorB,
+    S2RScissorB,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum S3Type
 {
-    S3SFB,
-    S3LSB,
-    S3IRB,
-    S3ORB,
-    S3Rep,
-    S3S,
+    S3SameFingerB,
+    S3LateralStretchB,
+    S3InrollB,
+    S3OutrollB,
+    S3RepeatB,
+    S3LScissorB,
+    S3RScissorB,
 }
 
 impl S1Type
@@ -53,18 +56,27 @@ impl S1Type
     {
         return match self
         {
-            | S1SFB => Predicates::is_sf,
-            | S1LSB => Predicates::is_ls,
-            | S1IRB => Predicates::is_inroll,
-            | S1ORB => Predicates::is_outroll,
-            | S1Rep => Predicates::all_equal,
-            | S1S => Predicates::is_scissor,
+            | S1SameFingerB => Predicates::is_sf,
+            | S1LateralStretchB => Predicates::is_ls,
+            | S1InrollB => Predicates::is_inroll,
+            | S1OutrollB => Predicates::is_outroll,
+            | S1RepeatB => Predicates::all_equal,
+            | S1LScissorB => Predicates::is_lh_scissor,
+            | S1RScissorB => Predicates::is_rh_scissor,
         };
     }
 
-    pub const fn default() -> [S1Type; 6]
+    pub const fn default() -> [S1Type; 7]
     {
-        return [S1SFB, S1LSB, S1IRB, S1ORB, S1Rep, S1S];
+        return [
+            S1SameFingerB,
+            S1LateralStretchB,
+            S1InrollB,
+            S1OutrollB,
+            S1RepeatB,
+            S1LScissorB,
+            S1RScissorB,
+        ];
     }
 
     pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>
@@ -80,18 +92,27 @@ impl S2Type
     {
         return match self
         {
-            | S2SFB => Predicates::is_sf,
-            | S2LSB => Predicates::is_ls,
-            | S2IRB => Predicates::is_inroll,
-            | S2ORB => Predicates::is_outroll,
-            | S2Rep => Predicates::all_equal,
-            | S2S => Predicates::is_scissor,
+            | S2SameFingerB => Predicates::is_sf,
+            | S2LateralStretchB => Predicates::is_ls,
+            | S2InrollB => Predicates::is_inroll,
+            | S2OutrollB => Predicates::is_outroll,
+            | S2RepeatB => Predicates::all_equal,
+            | S2LScissorB => Predicates::is_lh_scissor,
+            | S2RScissorB => Predicates::is_rh_scissor,
         };
     }
 
-    pub const fn default() -> [S2Type; 6]
+    pub const fn default() -> [S2Type; 7]
     {
-        return [S2SFB, S2LSB, S2IRB, S2ORB, S2Rep, S2S];
+        return [
+            S2SameFingerB,
+            S2LateralStretchB,
+            S2InrollB,
+            S2OutrollB,
+            S2RepeatB,
+            S2LScissorB,
+            S2RScissorB,
+        ];
     }
 
     pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>
@@ -107,18 +128,27 @@ impl S3Type
     {
         return match self
         {
-            | S3SFB => Predicates::is_sf,
-            | S3LSB => Predicates::is_ls,
-            | S3IRB => Predicates::is_inroll,
-            | S3ORB => Predicates::is_outroll,
-            | S3Rep => Predicates::all_equal,
-            | S3S => Predicates::is_scissor,
+            | S3SameFingerB => Predicates::is_sf,
+            | S3LateralStretchB => Predicates::is_ls,
+            | S3InrollB => Predicates::is_inroll,
+            | S3OutrollB => Predicates::is_outroll,
+            | S3RepeatB => Predicates::all_equal,
+            | S3LScissorB => Predicates::is_lh_scissor,
+            | S3RScissorB => Predicates::is_rh_scissor,
         };
     }
 
-    pub const fn default() -> [S3Type; 6]
+    pub const fn default() -> [S3Type; 7]
     {
-        return [S3SFB, S3LSB, S3IRB, S3ORB, S3Rep, S3S];
+        return [
+            S3SameFingerB,
+            S3LateralStretchB,
+            S3InrollB,
+            S3OutrollB,
+            S3RepeatB,
+            S3LScissorB,
+            S3RScissorB,
+        ];
     }
 
     pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>

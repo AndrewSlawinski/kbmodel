@@ -15,26 +15,26 @@ use std::ops::Index;
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum BType
 {
-    SFB,
-    LSB,
+    SameFingerB,
+    LateralStretchB,
 
-    IRB,
-    ORB,
-    LHIRB,
-    LHORB,
-    RHIRB,
-    RHORB,
+    LInrollB,
+    LOutrollB,
 
-    URB,
-    DRB,
-    LHURB,
-    LHDRB,
-    RHURB,
-    RHDRB,
+    RInrollB,
+    ROutrollB,
 
-    AB,
-    RepB,
-    S,
+    LUprollB,
+    LDownrollB,
+
+    RUprollB,
+    RDownrollB,
+
+    AlternateB,
+    RepeatB,
+
+    LScissorB,
+    RScissorB,
 }
 
 impl BType
@@ -44,31 +44,40 @@ impl BType
     {
         return match self
         {
-            | SFB => Predicates::is_sf,
-            | LSB => Predicates::is_ls,
-            | IRB => Predicates::is_inroll,
-            | ORB => Predicates::is_outroll,
-            | AB => Predicates::is_alternate,
-            | RepB => Predicates::all_equal,
-            | S => Predicates::is_scissor,
-            | LHIRB => Predicates::is_lh_inroll,
-            | LHORB => Predicates::is_lh_outroll,
-            | RHIRB => Predicates::is_rh_inroll,
-            | RHORB => Predicates::is_rh_outroll,
-            | URB => Predicates::is_uproll,
-            | DRB => Predicates::is_downroll,
-            | LHURB => Predicates::is_lh_uproll,
-            | LHDRB => Predicates::is_lh_downroll,
-            | RHURB => Predicates::is_rh_uproll,
-            | RHDRB => Predicates::is_rh_downroll,
+            | SameFingerB => Predicates::is_sf,
+            | LateralStretchB => Predicates::is_ls,
+            | AlternateB => Predicates::is_alternate,
+            | RepeatB => Predicates::all_equal,
+            | LScissorB => Predicates::is_lh_scissor,
+            | RScissorB => Predicates::is_rh_scissor,
+            | LInrollB => Predicates::is_lh_inroll,
+            | LOutrollB => Predicates::is_lh_outroll,
+            | RInrollB => Predicates::is_rh_inroll,
+            | ROutrollB => Predicates::is_rh_outroll,
+            | LUprollB => Predicates::is_lh_uproll,
+            | LDownrollB => Predicates::is_lh_downroll,
+            | RUprollB => Predicates::is_rh_uproll,
+            | RDownrollB => Predicates::is_rh_downroll,
         };
     }
 
-    pub const fn default() -> [BType; 17]
+    pub const fn default() -> [BType; 14]
     {
         return [
-            SFB, LSB, IRB, ORB, AB, RepB, S, LHIRB, LHORB, RHIRB, RHORB, URB, DRB, LHURB, LHDRB,
-            RHURB, RHDRB,
+            SameFingerB,
+            LateralStretchB,
+            AlternateB,
+            RepeatB,
+            LScissorB,
+            RScissorB,
+            LInrollB,
+            LOutrollB,
+            RInrollB,
+            ROutrollB,
+            LUprollB,
+            LDownrollB,
+            RUprollB,
+            RDownrollB,
         ];
     }
 

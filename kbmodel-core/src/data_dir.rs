@@ -46,7 +46,7 @@ impl DataFetch
 
         for entry in fetch.flatten().into_iter()
         {
-            if entry.path().extension().unwrap() != "kb"
+            if entry.path().extension().unwrap() != "txt"
             {
                 continue;
             }
@@ -54,7 +54,7 @@ impl DataFetch
             let string = read_to_string(entry.path());
 
             let name = entry.file_name().to_str().unwrap().to_string();
-            let name = name[.. name.len() - 3].to_string();
+            let name = name[.. name.len() - ".txt".len()].to_string();
 
             layouts.insert(name, Self::parse_layout(&string.unwrap().as_str()));
         }

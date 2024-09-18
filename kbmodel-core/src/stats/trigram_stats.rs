@@ -14,12 +14,12 @@ use std::ops::Index;
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum TType
 {
-    SFT,
+    SameFingerT,
     IRT,
     ORT,
-    Red,
-    AT,
-    RepT,
+    Redirect,
+    AlternateT,
+    RepeatT,
 }
 
 impl TType
@@ -29,18 +29,18 @@ impl TType
     {
         return match self
         {
-            | SFT => Predicates::is_sf,
+            | SameFingerT => Predicates::is_sf,
             | IRT => Predicates::is_inroll,
             | ORT => Predicates::is_outroll,
-            | Red => Predicates::is_redirect,
-            | AT => Predicates::is_alternate,
-            | RepT => Predicates::all_equal,
+            | Redirect => Predicates::is_redirect,
+            | AlternateT => Predicates::is_alternate,
+            | RepeatT => Predicates::all_equal,
         };
     }
 
     pub const fn default() -> [TType; 6]
     {
-        return [SFT, IRT, ORT, Red, AT, RepT];
+        return [SameFingerT, IRT, ORT, Redirect, AlternateT, RepeatT];
     }
 
     pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>

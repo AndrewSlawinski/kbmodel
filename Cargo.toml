@@ -12,18 +12,18 @@ authors = ["O_X_E_Y <lucoerlemans37@gmail.com>"]
 edition = "2021"
 
 [workspace]
-members = [
-    "oxeylyzer-core",
-    "oxeylyzer-repl"
+members = ["kbmodel-ui",
+    "kbmodel-core",
+    "kbmodel-repl"
 ]
 
 [dependencies]
-oxeylyzer-core = { path = "./oxeylyzer-core" }
-oxeylyzer-repl = { path = "./oxeylyzer-repl" }
+kbmodel-core = { path = "./kbmodel-core" }
+kbmodel-repl = { path = "./kbmodel-repl" }
 
 [dev-dependencies]
 diol = { version = "0.8.3", default-features = false }
 
 [[bin]]
 name = "oxeylyzer"
-path = "./oxeylyzer-repl/src/bin/main.rs"
+path = "./kbmodel-repl/src/bin/main.rs"

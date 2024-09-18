@@ -14,12 +14,13 @@ use std::ops::Index;
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum DType
 {
-    D1SFB,
-    D1LSB,
-    D1IRB,
-    D1ORB,
-    D1Rep,
-    D1S,
+    D1SameFingerB,
+    D1LateralStretchB,
+    D1InrollB,
+    D1OutrollB,
+    D1Repeat,
+    D1LScissor,
+    D1RScissor,
 }
 
 impl DType
@@ -29,18 +30,27 @@ impl DType
     {
         return match self
         {
-            | D1SFB => Predicates::is_sf,
-            | D1LSB => Predicates::is_ls,
-            | D1IRB => Predicates::is_inroll,
-            | D1ORB => Predicates::is_outroll,
-            | D1Rep => Predicates::all_equal,
-            | D1S => Predicates::is_scissor,
+            | D1SameFingerB => Predicates::is_sf,
+            | D1LateralStretchB => Predicates::is_ls,
+            | D1InrollB => Predicates::is_inroll,
+            | D1OutrollB => Predicates::is_outroll,
+            | D1Repeat => Predicates::all_equal,
+            | D1LScissor => Predicates::is_lh_scissor,
+            | D1RScissor => Predicates::is_rh_scissor,
         };
     }
 
-    pub const fn default() -> [DType; 6]
+    pub const fn default() -> [DType; 7]
     {
-        return [D1SFB, D1LSB, D1IRB, D1ORB, D1Rep, D1S];
+        return [
+            D1SameFingerB,
+            D1LateralStretchB,
+            D1InrollB,
+            D1OutrollB,
+            D1Repeat,
+            D1LScissor,
+            D1RScissor,
+        ];
     }
 
     pub const fn source(language_data: &LanguageData) -> &HashMap<String, f32>

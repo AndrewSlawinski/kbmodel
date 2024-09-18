@@ -1,4 +1,4 @@
-use oxeylyzer_repl::repl::Repl;
+use kbmodel_repl::repl::Repl;
 
 use std::io;
 

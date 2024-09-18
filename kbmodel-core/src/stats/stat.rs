@@ -2,7 +2,6 @@ use crate::language_data::LanguageData;
 use crate::stats::bigram_stats::BType;
 use crate::stats::character_stats::CType;
 use crate::stats::disjoint_stats::DType;
-use crate::stats::predicates::Predicates;
 use crate::stats::skip_stats::{
     S1Type,
     S2Type,
@@ -15,8 +14,6 @@ use core::fmt::{
     Formatter,
 };
 use indexmap::IndexMap;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
 use std::collections::HashMap;
 use std::fmt;
 use std::ops::Index;
@@ -30,7 +27,7 @@ pub struct Stat<T>
 #[allow(dead_code)]
 impl<T> Stat<T>
 {
-    fn p1(chars: &Fixed<char>, data: &HashMap<char, f32>, f: fn(&u8) -> bool) -> f32
+    fn p1(chars: &Fixed<char>, data: &HashMap<String, f32>, f: fn(&[u8]) -> bool) -> f32
     {
         let mut v = 0.;
 
@@ -43,9 +40,9 @@ impl<T> Stat<T>
                 continue;
             }
 
-            if f(&i)
+            if f(&[i])
             {
-                let p = data.get(&c0).unwrap_or(&0.0);
+                let p = data.get(&format!("{c0}")).unwrap_or(&0.0);
 
                 v += *p;
             }
@@ -278,214 +275,6 @@ impl<T> Stat<T>
         }
 
         return v * 100.;
-    }
-}
-
-#[allow(dead_code)]
-impl<T> Stat<T>
-{
-    fn p1_par(chars: &Fixed<char>, data: &HashMap<char, f32>, f: fn(&u8) -> bool) -> f32
-    {
-        return 100.
-            * (0_u8 .. 30_u8)
-                .into_par_iter()
-                .fold(
-                    || 0.,
-                    |acc, i| {
-                        let c0 = chars[i as usize];
-
-                        acc + if char::is_ascii_punctuation(&c0)
-                        {
-                            0.
-                        }
-                        else if f(&i)
-                        {
-                            *data.get(&c0).unwrap_or(&0.)
-                        }
-                        else
-                        {
-                            0.
-                        }
-                    },
-                )
-                .sum::<f32>();
-    }
-
-    fn p2_par(chars: &Fixed<char>, data: &HashMap<String, f32>, f: fn(&[u8]) -> bool) -> f32
-    {
-        return 100.
-            * (0_u8 .. 30_u8)
-                .into_par_iter()
-                .fold(
-                    || 0.,
-                    |acc0, i| {
-                        let c0 = chars[i as usize];
-
-                        acc0 + if char::is_ascii_punctuation(&c0)
-                        {
-                            0.
-                        }
-                        else
-                        {
-                            (0_u8 .. 30_u8)
-                                .into_par_iter()
-                                .fold(
-                                    || 0.,
-                                    |acc1, j| {
-                                        let c1 = chars[j as usize];
-
-                                        acc1 + if char::is_ascii_punctuation(&c1)
-                                        {
-                                            0.
-                                        }
-                                        else if f(&[i, j])
-                                        {
-                                            *data.get(&format!("{c0}{c1}")).unwrap_or(&0.)
-                                        }
-                                        else
-                                        {
-                                            0.
-                                        }
-                                    },
-                                )
-                                .sum::<f32>()
-                        }
-                    },
-                )
-                .sum::<f32>();
-    }
-
-    fn p3_par(chars: &Fixed<char>, data: &HashMap<String, f32>, f: fn(&[u8]) -> bool) -> f32
-    {
-        return 100.
-            * (0_u8 .. 30_u8)
-                .into_par_iter()
-                .fold(
-                    || 0.,
-                    |acc0, i| {
-                        let c0 = chars[i as usize];
-
-                        acc0 + if char::is_ascii_punctuation(&c0)
-                        {
-                            0.
-                        }
-                        else
-                        {
-                            (0_u8 .. 30_u8)
-                                .into_par_iter()
-                                .fold(
-                                    || 0.,
-                                    |acc1, j| {
-                                        let c1 = chars[j as usize];
-
-                                        acc1 + if char::is_ascii_punctuation(&c1)
-                                        {
-                                            0.
-                                        }
-                                        else
-                                        {
-                                            (0_u8 .. 30_u8)
-                                                .into_par_iter()
-                                                .fold(
-                                                    || 0.,
-                                                    |acc2, k| {
-                                                        let c2 = chars[k as usize];
-
-                                                        acc2 + if char::is_ascii_punctuation(&c2)
-                                                        {
-                                                            0.
-                                                        }
-                                                        else if f(&[i, j, k])
-                                                        {
-                                                            *data
-                                                                .get(&format!("{c0}{c1}{c2}"))
-                                                                .unwrap_or(&0.)
-                                                        }
-                                                        else
-                                                        {
-                                                            0.
-                                                        }
-                                                    },
-                                                )
-                                                .sum::<f32>()
-                                        }
-                                    },
-                                )
-                                .sum::<f32>()
-                        }
-                    },
-                )
-                .sum::<f32>();
-    }
-
-    fn p3_m1_par(chars: &Fixed<char>, data: &HashMap<String, f32>, f: fn(&[u8]) -> bool) -> f32
-    {
-        return 100.
-            * (0_u8 .. 30_u8)
-                .into_par_iter()
-                .fold(
-                    || 0.,
-                    |acc0, i| {
-                        let c0 = chars[i as usize];
-
-                        acc0 + if char::is_ascii_punctuation(&c0)
-                        {
-                            0.
-                        }
-                        else
-                        {
-                            let i_left = Predicates::is_left_hand(&i);
-
-                            (0_u8 .. 30_u8)
-                                .into_par_iter()
-                                .fold(
-                                    || 0.,
-                                    |acc1, j| {
-                                        let j_left = Predicates::is_left_hand(&j);
-
-                                        let c1 = chars[j as usize];
-
-                                        acc1 + if char::is_ascii_punctuation(&c1)
-                                            || i_left == j_left
-                                        {
-                                            0.
-                                        }
-                                        else
-                                        {
-                                            (0_u8 .. 30_u8)
-                                                .into_par_iter()
-                                                .fold(
-                                                    || 0.,
-                                                    |acc2, k| {
-                                                        let c2 = chars[k as usize];
-
-                                                        acc2 + if char::is_ascii_punctuation(&c2)
-                                                            || j_left
-                                                                == Predicates::is_left_hand(&k)
-                                                        {
-                                                            0.
-                                                        }
-                                                        else if f(&[i, k])
-                                                        {
-                                                            *data
-                                                                .get(&format!("{c0}{c1}{c2}"))
-                                                                .unwrap_or(&0.)
-                                                        }
-                                                        else
-                                                        {
-                                                            0.
-                                                        }
-                                                    },
-                                                )
-                                                .sum::<f32>()
-                                        }
-                                    },
-                                )
-                                .sum::<f32>()
-                        }
-                    },
-                )
-                .sum::<f32>();
     }
 }
 
@@ -804,8 +593,8 @@ impl Display for Stat<CType>
             let mut value1 = format!("{value1:.3}%");
             value1 = format!("{value1:0>7}");
 
-            let k = format!("{key0:7}{:5}{key1}", "");
-            let s = format!("{k}\n{value0}{:5}{value1}\n", "");
+            let k = format!("{key0:20}{:5}{key1}", "");
+            let s = format!("{k}\n{value0}{:18}{value1}\n", "");
 
             format.push_str(s.as_str());
         }
@@ -824,7 +613,7 @@ impl Display for Stat<BType>
             let key = format!("{key:?}");
             let value = format!("{value:.3}%");
 
-            let s = format!("{key:7}{:5}{value:0>7}\n", "");
+            let s = format!("{key:20}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });
@@ -843,7 +632,7 @@ impl Display for Stat<TType>
             let key = format!("{key:?}");
             let value = format!("{value:.3}%");
 
-            let s = format!("{key:7}{:5}{value:0>7}\n", "");
+            let s = format!("{key:20}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });
@@ -862,7 +651,7 @@ impl Display for Stat<DType>
             let key = format!("{key:?}");
             let value = format!("{value:.3}%");
 
-            let s = format!("{key:7}{:5}{value:0>7}\n", "");
+            let s = format!("{key:20}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });
@@ -881,7 +670,7 @@ impl Display for Stat<S1Type>
             let key = format!("{key:?}");
             let value = format!("{value:.3}%");
 
-            let s = format!("{key:7}{:5}{value:0>7}\n", "");
+            let s = format!("{key:20}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });
@@ -900,7 +689,7 @@ impl Display for Stat<S2Type>
             let key = format!("{key:?}");
             let value = format!("{value:.3}%");
 
-            let s = format!("{key:7}{:5}{value:0>7}\n", "");
+            let s = format!("{key:20}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });
@@ -919,7 +708,7 @@ impl Display for Stat<S3Type>
             let key = format!("{key:?}");
             let value = format!("{value:.3}%");
 
-            let s = format!("{key:7}{:5}{value:0>7}\n", "");
+            let s = format!("{key:20}{:5}{value:0>7}\n", "");
 
             format.push_str(s.as_str());
         });
