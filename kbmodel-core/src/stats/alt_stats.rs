@@ -143,7 +143,7 @@ impl DataSet
         {
             | Column => Self::character,
             | Bigram => Self::bigram,
-            | Disjoint => Self::disjoint,
+            | Disjoint => Self::bigram,
             | Skip1 => Self::bigram,
             | Skip2 => Self::bigram,
             | Skip3 => Self::bigram,
@@ -157,9 +157,9 @@ impl DataSet
         {
             for (k, v) in index_map.iter_mut()
             {
-                if k.f()(&[i as u8])
+                if k.f()(&[i])
                 {
-                    *v += data[i];
+                    *v += data[i as usize];
                 }
             }
         }
@@ -173,40 +173,11 @@ impl DataSet
             {
                 for (k, v) in index_map.iter_mut()
                 {
-                    if k.f()(&[i as u8, j as u8])
+                    if k.f()(&[i, j])
                     {
-                        let l = i * 30 + j;
-
-                        *v += data[l];
+                        *v += data[i as usize * 30 + j as usize];
                     }
                 }
-            }
-        }
-    }
-
-    fn disjoint(data: &[f32], index_map: &mut IndexMap<StatType, f32>)
-    {
-        for i in 0 .. 30
-        {
-            let i_left = i % 10 < 5;
-            let mut m = if i_left { 0 } else { 5 };
-            for j in 0 .. 15
-            {
-                if i_left != (m % 10 < 5)
-                {
-                    m += 5;
-                }
-
-                let l = i * 15 + j;
-                for (k, v) in index_map.iter_mut()
-                {
-                    if k.f()(&[i as u8, m as u8])
-                    {
-                        *v += data[l];
-                    }
-                }
-
-                m += 1;
             }
         }
     }
@@ -221,11 +192,9 @@ impl DataSet
                 {
                     for (k, v) in index_map.iter_mut()
                     {
-                        if k.f()(&[i as u8, j as u8, l as u8])
+                        if k.f()(&[i, j, l])
                         {
-                            let m = i * 300 + j * 30 + l;
-
-                            *v += data[m];
+                            *v += data[i as usize * 300 + j as usize * 30 + l as usize];
                         }
                     }
                 }

@@ -6,7 +6,7 @@ pub struct StatMatrices
 {
     pub char_map: [f32; 30],
     pub bigram_map: [f32; 900],
-    pub disjoint_map: [f32; 450],
+    pub disjoint_map: [f32; 900],
 
     pub skip1_map: [f32; 900],
     pub skip2_map: [f32; 900],
@@ -23,7 +23,7 @@ impl StatMatrices
         return Self {
             char_map: [0.; 30],
             bigram_map: [0.; 900],
-            disjoint_map: [0.; 450],
+            disjoint_map: [0.; 900],
             skip1_map: [0.; 900],
             skip2_map: [0.; 900],
             skip3_map: [0.; 900],
@@ -83,58 +83,49 @@ impl StatMatrices
         }
     }
 
-    async fn disjoint_map(a: &mut [f32; 450], chars: &[char; 30], hash_map: &HashMap<String, f32>)
+    async fn disjoint_map(a: &mut [f32; 900], chars: &[char; 30], hash_map: &HashMap<String, f32>)
     {
-        let mut l = 0;
         for (i, c0) in chars.iter().enumerate()
         {
             if c0.is_ascii_punctuation()
             {
-                l += 1;
-
                 continue;
             }
 
             let i_left = i % 10 < 5;
             for (j, c1) in chars.iter().enumerate()
             {
-                let j_left = j % 10 < 5;
-
-                if i_left == j_left
-                {
-                    continue;
-                }
-
                 if c1.is_ascii_punctuation()
                 {
                     continue;
                 }
 
-                let mut m = 0;
+                let j_left = j % 10 < 5;
+                if i_left == j_left
+                {
+                    continue;
+                }
+
                 for (k, c2) in chars.iter().enumerate()
                 {
+                    if c2.is_ascii_punctuation()
+                    {
+                        continue;
+                    }
+
                     if i_left != (k % 10 < 5)
                     {
                         continue;
                     }
 
-                    if c2.is_ascii_punctuation()
-                    {
-                        m += 1;
-
-                        continue;
-                    }
-
-                    let n = m + l * 15;
+                    let l = k + i * 30;
                     let s = format!("{c0}{c1}{c2}");
 
-                    a[n] += *hash_map.get(&s).unwrap_or(&0.0) * 100.0;
+                    // println!("{}", s);
 
-                    m += 1;
+                    a[l] += *hash_map.get(&s).unwrap_or(&0.0) * 100.0;
                 }
             }
-
-            l += 1;
         }
     }
 
