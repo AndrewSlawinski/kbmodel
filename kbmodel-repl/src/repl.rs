@@ -19,7 +19,10 @@ use kbmodel_core::stats::alt_stats::DataSet::{
 };
 use kbmodel_core::stats::predicates::Predicates;
 use kbmodel_core::stats::stat_matrices::StatMatrices;
-use kbmodel_core::stats::stat_type::StatType::SameFinger;
+use kbmodel_core::stats::stat_type::StatType::{
+    LSameFinger,
+    RSameFinger,
+};
 use kbmodel_core::type_def::Fixed;
 use std::collections::HashMap;
 use std::io;
@@ -125,8 +128,6 @@ impl Repl
         let name0 = o.name1;
         let name1 = o.name2;
 
-        let mut result = format!("\n{name0:44}{name1}\n");
-
         let l0 = self.layout_by_name(name0.as_str());
         let l1 = self.layout_by_name(name1.as_str());
 
@@ -142,22 +143,39 @@ impl Repl
             s0.1.map
                 .iter()
                 .zip(&s1.1.map)
-                .map(|(a, b)| format!("{a}{:23}{b}", " "))
+                .map(|(a, b)| format!("\t{:17}{a}{:5}{b}", "", ""))
                 .collect_vec()
                 .join("\n");
 
-        let st0 = format!("\n\n{}", s0.0);
-        let st1 = format!("\n\n{}", s1.0);
+        let st0 = format!("\n\n{}", s0.0.table_format());
+        let st1 = format!("\n\n{}", s1.0.table_format());
 
         let stats = st0
             .split("\n")
             .zip(st1.split("\n"))
-            .map(|(a, b)| format!("{a:44}{b}"))
+            .map(|(a, b)| {
+                if !a.contains("\t")
+                {
+                    format!("{}", &a.get(0 .. 28.min(a.len())).unwrap_or(""),)
+                }
+                else
+                {
+                    format!(
+                        "{}{}{:6}{}",
+                        &a.get(0 .. 16.min(a.len())).unwrap_or(""),
+                        &a.get(a.len().saturating_sub(28) .. a.len()).unwrap_or(""),
+                        "",
+                        &b.get(b.len().saturating_sub(28) .. b.len()).unwrap_or("")
+                    )
+                }
+            })
             .collect_vec()
             .join("\n");
 
+        let mut result = format!("\n\t\t\t {name0:20}{:6}{name1}\n", "");
+
         result.push_str(heatmap.as_str());
-        result.push_str(stats.as_str());
+        result.push_str(&stats.as_str()[0 .. (stats.len() - 1)]);
 
         println!("{result}");
     }
@@ -194,9 +212,9 @@ impl Repl
 
         let stats = l.0;
 
-        let layout_str = l.1.map.join("\n");
+        let layout_str = l.1.map.iter().map(|x| format!("\t\t\t {x}")).join("\n");
 
-        println!("{layout_str}\n\n{stats}");
+        println!("{layout_str}\n\n{}", stats.table_format());
     }
 
     pub fn rank(&self, rank: Rank)
@@ -214,7 +232,12 @@ impl Repl
                 let mut stats = AltStats::new();
                 block_on(stats.compute(&matrices));
 
-                let a = [stats[&Bigram][&SameFinger], stats[&Disjoint][&SameFinger]];
+                let a = [
+                    stats[&Bigram][&LSameFinger],
+                    stats[&Bigram][&RSameFinger],
+                    stats[&Disjoint][&LSameFinger],
+                    stats[&Disjoint][&RSameFinger],
+                ];
 
                 let metric = a.into_iter().fold(0., |c, x| c + x);
 
@@ -233,7 +256,7 @@ impl Repl
             }
         });
 
-        v.iter().for_each(|(n, s)| println!("{n:24} {s:.5}"));
+        v.iter().for_each(|(n, s)| println!("{n:18} {s:.5}"));
     }
 
     fn sfbs(&self, o: Sfbs)
@@ -254,7 +277,8 @@ impl Repl
                 {
                     for j in 0 .. 30
                     {
-                        if Predicates::is_sf(&mut [i as u8, j as u8])
+                        if Predicates::is_lh_sf(&mut [i as u8, j as u8])
+                            || Predicates::is_rh_sf(&mut [i as u8, j as u8])
                         {
                             let c0 = layout.matrix[i];
                             let c1 = layout.matrix[j];
@@ -303,7 +327,8 @@ impl Repl
                     {
                         for k in 0 .. 30
                         {
-                            if Predicates::is_sf(&mut [i as u8, j as u8, k as u8])
+                            if Predicates::is_lh_sf(&mut [i as u8, j as u8, k as u8])
+                                || Predicates::is_rh_sf(&mut [i as u8, j as u8, k as u8])
                             {
                                 let c0 = layout.matrix[i];
                                 let c1 = layout.matrix[j];

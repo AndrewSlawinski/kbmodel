@@ -1,10 +1,11 @@
 use crate::stats::alt_stats::DataSet::{
     Bigram,
-    Character,
+    Column,
     Disjoint,
     Skip1,
     Skip2,
     Skip3,
+    Trigram,
 };
 use crate::stats::stat_matrices::StatMatrices;
 use crate::stats::stat_type::StatType;
@@ -13,6 +14,7 @@ use core::fmt::{
     Formatter,
 };
 use indexmap::IndexMap;
+use itertools::Itertools;
 use std::fmt;
 use std::ops::Index;
 
@@ -27,14 +29,14 @@ impl AltStats
     {
         let mut map = IndexMap::new();
 
-        let stat = StatType::default();
-        let columns = StatType::columns();
+        let stat = StatType::bigram();
+        let columns = StatType::character();
 
         for d in DataSet::default()
         {
             let mut f = IndexMap::new();
 
-            if d == Character
+            if d == Column
             {
                 for s in columns
                 {
@@ -60,14 +62,49 @@ impl AltStats
         {
             match k
             {
-                | Character => k.f()(&stat_matrices.char_map, v),
+                | Column => k.f()(&stat_matrices.char_map, v),
                 | Bigram => k.f()(&stat_matrices.bigram_map, v),
                 | Skip1 => k.f()(&stat_matrices.skip1_map, v),
                 | Skip2 => k.f()(&stat_matrices.skip2_map, v),
                 | Skip3 => k.f()(&stat_matrices.skip2_map, v),
                 | Disjoint => k.f()(&stat_matrices.disjoint_map, v),
+                | Trigram => k.f()(&stat_matrices.trigram_map, v),
             }
         }
+    }
+
+    pub fn table_format(&self) -> String
+    {
+        let mut format = String::new();
+
+        format.push_str(&format!("\t{:17}Left:{:6}Right:{:5}Total:\n", "", "", ""));
+
+        self.map.iter().for_each(|(k0, v0)| {
+            format.push_str(&format!("{:?}:\n", k0));
+
+            for (a, b) in v0.iter().tuples()
+            {
+                let k1 = format!("{:?}", a.0);
+
+                let av = format!("{:.3}%", a.1);
+                let bv = format!("{:.3}%", b.1);
+                let tv = format!("{:.3}%", a.1 + b.1);
+
+                let s = format!(
+                    "\t{:14}{:3}{av: >7}{:4}{bv: >7}{:4}{tv: >7}\n",
+                    &k1[1 ..],
+                    "",
+                    "",
+                    "",
+                );
+
+                format.push_str(s.as_str());
+            }
+
+            format.push_str("\n");
+        });
+
+        return format[0 .. (format.len() - 1)].to_string();
     }
 }
 
@@ -84,31 +121,33 @@ impl Index<&DataSet> for AltStats
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum DataSet
 {
-    Character,
+    Column,
     Bigram,
     Skip1,
     Skip2,
     Skip3,
     Disjoint,
+    Trigram,
 }
 
 impl DataSet
 {
-    pub const fn default() -> [DataSet; 6]
+    pub const fn default() -> [DataSet; 7]
     {
-        return [Character, Bigram, Disjoint, Skip1, Skip2, Skip3];
+        return [Column, Bigram, Disjoint, Skip1, Skip2, Skip3, Trigram];
     }
 
     pub const fn f(&self) -> fn(data: &[f32], indexmap: &mut IndexMap<StatType, f32>)
     {
         return match self
         {
-            | Character => Self::character,
+            | Column => Self::character,
             | Bigram => Self::bigram,
-            | Disjoint => Self::bigram,
+            | Disjoint => Self::disjoint,
             | Skip1 => Self::bigram,
             | Skip2 => Self::bigram,
             | Skip3 => Self::bigram,
+            | Trigram => Self::trigram,
         };
     }
 
@@ -144,6 +183,55 @@ impl DataSet
             }
         }
     }
+
+    fn disjoint(data: &[f32], index_map: &mut IndexMap<StatType, f32>)
+    {
+        for i in 0 .. 30
+        {
+            let i_left = i % 10 < 5;
+            let mut m = if i_left { 0 } else { 5 };
+            for j in 0 .. 15
+            {
+                if i_left != (m % 10 < 5)
+                {
+                    m += 5;
+                }
+
+                let l = i * 15 + j;
+                for (k, v) in index_map.iter_mut()
+                {
+                    if k.f()(&[i as u8, m as u8])
+                    {
+                        *v += data[l];
+                    }
+                }
+
+                m += 1;
+            }
+        }
+    }
+
+    fn trigram(data: &[f32], index_map: &mut IndexMap<StatType, f32>)
+    {
+        for i in 0 .. 30
+        {
+            for j in 0 .. 30
+            {
+                for l in 0 .. 30
+                {
+                    for (k, v) in index_map.iter_mut()
+                    {
+                        if k.f()(&[i as u8, j as u8, l as u8])
+                        {
+                            let m = i * 300 + j * 30 + l;
+
+                            *v += data[m];
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Display for AltStats
@@ -167,6 +255,6 @@ impl Display for AltStats
             format.push_str("\n");
         });
 
-        write!(f, "{}", format.clone())
+        write!(f, "{}", format)
     }
 }

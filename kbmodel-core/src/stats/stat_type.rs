@@ -1,55 +1,41 @@
 use crate::stats::predicates::Predicates;
-use crate::stats::stat_type::StatType::{
-    Alternate,
-    LDownroll,
-    LIndex,
-    LInroll,
-    LMiddle,
-    LOutroll,
-    LPinky,
-    LRing,
-    LScissor,
-    LUproll,
-    LateralStretch,
-    RDownroll,
-    RIndex,
-    RInroll,
-    RMiddle,
-    ROutroll,
-    RPinky,
-    RRing,
-    RScissor,
-    RUproll,
-    Repeat,
-    RowJump,
-    SameFinger,
-};
+use crate::stats::stat_type::StatType::*;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
 pub enum StatType
 {
-    SameFinger,
-    LateralStretch,
+    LSameFinger,
+    RSameFinger,
 
-    LInroll,
-    LOutroll,
+    LLateralStretch,
+    RLateralStretch,
 
-    RInroll,
-    ROutroll,
+    LInward,
+    RInward,
 
-    LUproll,
-    LDownroll,
+    LOutward,
+    ROutward,
 
-    RUproll,
-    RDownroll,
+    LUpward,
+    RUpward,
 
-    Alternate,
-    Repeat,
+    LDownward,
+    RDownward,
 
-    RowJump,
+    LAlternate,
+    RAlternate,
+
+    LRepeat,
+    RRepeat,
+
+    LRowSkip,
+    RRowSkip,
 
     LScissor,
     RScissor,
+
+    LRedirect,
+    RRedirect,
 
     LIndex,
     LMiddle,
@@ -60,6 +46,14 @@ pub enum StatType
     RMiddle,
     RRing,
     RPinky,
+
+    LUpper,
+    LCentre,
+    LLower,
+
+    RUpper,
+    RCentre,
+    RLower,
 }
 
 impl StatType
@@ -69,63 +63,118 @@ impl StatType
     {
         return match self
         {
-            | SameFinger => Predicates::is_sf,
-            | LateralStretch => Predicates::is_ls,
-            | Alternate => Predicates::is_alternate,
-            | Repeat => Predicates::all_equal,
+            | LSameFinger => Predicates::is_lh_sf,
+            | RSameFinger => Predicates::is_rh_sf,
+
+            | LLateralStretch => Predicates::is_lh_ls,
+            | RLateralStretch => Predicates::is_rh_ls,
+
+            | LAlternate => Predicates::is_lh_alternate,
+            | RAlternate => Predicates::is_rh_alternate,
+
+            | LRedirect => Predicates::is_lh_redirect,
+            | RRedirect => Predicates::is_rh_redirect,
+
+            | LRepeat => Predicates::is_lh_repeat,
+            | RRepeat => Predicates::is_rh_repeat,
 
             | LScissor => Predicates::is_lh_scissor,
             | RScissor => Predicates::is_rh_scissor,
-            | RowJump => Predicates::is_row_jump,
 
-            | LInroll => Predicates::is_lh_inroll,
-            | LOutroll => Predicates::is_lh_outroll,
+            | LRowSkip => Predicates::is_lh_row_skip,
+            | RRowSkip => Predicates::is_rh_row_skip,
 
-            | RInroll => Predicates::is_rh_inroll,
-            | ROutroll => Predicates::is_rh_outroll,
+            | LInward => Predicates::is_lh_inroll,
+            | RInward => Predicates::is_rh_inroll,
 
-            | LUproll => Predicates::is_lh_uproll,
-            | LDownroll => Predicates::is_lh_downroll,
+            | LOutward => Predicates::is_lh_outroll,
+            | ROutward => Predicates::is_rh_outroll,
 
-            | RUproll => Predicates::is_rh_uproll,
-            | RDownroll => Predicates::is_rh_downroll,
+            | LUpward => Predicates::is_lh_uproll,
+            | RUpward => Predicates::is_rh_uproll,
+
+            | LDownward => Predicates::is_lh_downroll,
+            | RDownward => Predicates::is_rh_downroll,
 
             | LPinky => |a| a[0] % 10 == 0,
             | LRing => |a| a[0] % 10 == 1,
             | LMiddle => |a| a[0] % 10 == 2,
             | LIndex => |a| a[0] % 10 == 3 || a[0] % 10 == 4,
+
             | RPinky => |a| a[0] % 10 == 9,
             | RRing => |a| a[0] % 10 == 8,
             | RMiddle => |a| a[0] % 10 == 7,
             | RIndex => |a| a[0] % 10 == 6 || a[0] % 10 == 5,
+
+            | LUpper => |a| a[0] / 10 == 0 && a[0] % 10 < 5,
+            | LCentre => |a| a[0] / 10 == 1 && a[0] % 10 < 5,
+            | LLower => |a| a[0] / 10 == 2 && a[0] % 10 < 5,
+
+            | RUpper => |a| a[0] / 10 == 0 && a[0] % 10 > 4,
+            | RCentre => |a| a[0] / 10 == 1 && a[0] % 10 > 4,
+            | RLower => |a| a[0] / 10 == 2 && a[0] % 10 > 4,
         };
     }
 
-    pub const fn default() -> [StatType; 15]
+    pub const fn bigram() -> [StatType; 20]
     {
         return [
-            SameFinger,
-            LateralStretch,
-            Alternate,
-            Repeat,
+            LSameFinger,
+            RSameFinger,
+            LLateralStretch,
+            RLateralStretch,
+            LAlternate,
+            RAlternate,
+            LRepeat,
+            RRepeat,
             LScissor,
             RScissor,
-            RowJump,
-            LInroll,
-            LOutroll,
-            RInroll,
-            ROutroll,
-            LUproll,
-            LDownroll,
-            RUproll,
-            RDownroll,
+            LRowSkip,
+            RRowSkip,
+            LInward,
+            RInward,
+            LOutward,
+            ROutward,
+            LUpward,
+            RUpward,
+            LDownward,
+            RDownward,
         ];
     }
 
-    pub const fn columns() -> [StatType; 8]
+    pub const fn trigram() -> [StatType; 22]
     {
         return [
-            LIndex, LMiddle, LRing, LPinky, RIndex, RMiddle, RRing, RPinky,
+            LSameFinger,
+            RSameFinger,
+            LLateralStretch,
+            RLateralStretch,
+            LAlternate,
+            RAlternate,
+            LRedirect,
+            RRedirect,
+            LRepeat,
+            RRepeat,
+            LScissor,
+            RScissor,
+            LRowSkip,
+            RRowSkip,
+            LInward,
+            RInward,
+            LOutward,
+            ROutward,
+            LUpward,
+            RUpward,
+            LDownward,
+            RDownward,
+        ];
+    }
+
+    pub const fn character() -> [StatType; 14]
+    {
+        return [
+            LIndex, RIndex, LMiddle, RMiddle, LRing, RRing, LPinky, RPinky, LUpper, RUpper,
+            LCentre, RCentre, LLower, RLower,
         ];
     }
 }
